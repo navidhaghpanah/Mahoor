@@ -28,27 +28,46 @@ class RealEstateRepository(
 
     // Simulates publishing an ad across several portals
     suspend fun publishAd(ad: RealEstateAd): Long {
-        // Prepare simulation of API publishing
-        delay(800) // Mock API network delays
-        val divarId = if (ad.publishToDivar) "DIV-${Random.nextInt(100000, 999999)}" else null
-        val sheypoorId = if (ad.publishToSheypoor) "SHY-${Random.nextInt(100000, 999999)}" else null
+        // 1. First insert into SQLite with initial "در حال بررسی" state to let user see it immediately
+        val initialAd = ad.copy(
+            publishStatus = "در حال بررسی",
+            divarId = null,
+            sheypoorId = null
+        )
+        val insertedId = realEstateDao.insertAd(initialAd)
 
-        // Initial realistic views/stats
-        val freshAd = ad.copy(
+        // 2. Perform live network simulation delays
+        delay(1800)
+
+        // 3. Determine if sync succeeds (15% random failure simulate, or if none are selected)
+        val hasSelection = ad.publishToDivar || ad.publishToSheypoor || ad.publishToMahoor
+        val isSuccessful = hasSelection && (Random.nextFloat() > 0.15f)
+
+        val divarId = if (isSuccessful && ad.publishToDivar) "DIV-${Random.nextInt(100000, 999999)}" else null
+        val sheypoorId = if (isSuccessful && ad.publishToSheypoor) "SHY-${Random.nextInt(100000, 999999)}" else null
+        val finalStatus = if (isSuccessful) "منتشر شده" else "خطا در ارسال"
+
+        val finalizedAd = initialAd.copy(
+            id = insertedId.toInt(),
             divarId = divarId,
             sheypoorId = sheypoorId,
-            views = if (ad.isActive) Random.nextInt(5, 12) else 0,
-            clicks = if (ad.isActive) Random.nextInt(1, 4) else 0,
-            leads = 0
+            views = if (isSuccessful && ad.isActive) Random.nextInt(4, 10) else 0,
+            clicks = if (isSuccessful && ad.isActive) Random.nextInt(1, 3) else 0,
+            publishStatus = finalStatus
         )
-        return realEstateDao.insertAd(freshAd)
+        realEstateDao.updateAd(finalizedAd)
+        return insertedId
     }
 
     suspend fun updateAd(ad: RealEstateAd) {
         val divarId = if (ad.publishToDivar && ad.divarId == null) "DIV-${Random.nextInt(100000, 999999)}" else if (ad.publishToDivar) ad.divarId else null
         val sheypoorId = if (ad.publishToSheypoor && ad.sheypoorId == null) "SHY-${Random.nextInt(100000, 999999)}" else if (ad.publishToSheypoor) ad.sheypoorId else null
         
-        realEstateDao.updateAd(ad.copy(divarId = divarId, sheypoorId = sheypoorId))
+        // Reset status to "منتشر شده" upon explicit edit
+        val hasSelection = ad.publishToDivar || ad.publishToSheypoor || ad.publishToMahoor
+        val status = if (hasSelection) "منتشر شده" else "خطا در ارسال"
+        
+        realEstateDao.updateAd(ad.copy(divarId = divarId, sheypoorId = sheypoorId, publishStatus = status))
     }
 
     suspend fun deleteAd(ad: RealEstateAd) {

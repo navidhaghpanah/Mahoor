@@ -126,7 +126,8 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 views = 142,
                 clicks = 38,
                 leads = 4,
-                isActive = true
+                isActive = true,
+                publishStatus = "منتشر شده"
             )
 
             val sample2 = RealEstateAd(
@@ -141,12 +142,13 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 publishToDivar = true,
                 publishToSheypoor = false,
                 publishToMahoor = true,
-                divarId = "DIV-228392",
+                divarId = null,
                 sheypoorId = null,
-                views = 93,
-                clicks = 19,
-                leads = 2,
-                isActive = true
+                views = 0,
+                clicks = 0,
+                leads = 0,
+                isActive = true,
+                publishStatus = "در حال بررسی"
             )
 
             val sample3 = RealEstateAd(
@@ -162,11 +164,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 publishToSheypoor = true,
                 publishToMahoor = true,
                 divarId = null,
-                sheypoorId = "SHY-102948",
-                views = 64,
-                clicks = 11,
-                leads = 1,
-                isActive = false
+                sheypoorId = null,
+                views = 0,
+                clicks = 0,
+                leads = 0,
+                isActive = false,
+                publishStatus = "خطا در ارسال"
             )
 
             database.realEstateDao().insertAd(sample1)

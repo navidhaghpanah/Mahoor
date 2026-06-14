@@ -23,7 +23,8 @@ data class RealEstateAd(
     val clicks: Int = 0,
     val leads: Int = 0, // Calls/contacts
     val timestamp: Long = System.currentTimeMillis(),
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val publishStatus: String = "منتشر شده" // "در حال بررسی", "منتشر شده", "خطا در ارسال"
 )
 
 @Entity(tableName = "channel_credentials")

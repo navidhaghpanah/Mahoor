@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -574,19 +575,26 @@ fun RealEstateAdCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.LocationOn,
-                            contentDescription = null,
-                            tint = MahoorSecondary,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = ad.location,
-                            fontSize = 12.sp,
-                            color = MahoorOnBackground.copy(alpha = 0.8f)
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = MahoorSecondary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = ad.location,
+                                fontSize = 12.sp,
+                                color = MahoorOnBackground.copy(alpha = 0.8f)
+                            )
+                        }
+                        PublishStatusBadge(status = ad.publishStatus)
                     }
                 }
                 
@@ -751,6 +759,89 @@ fun RealEstateAdCard(
 }
 
 @Composable
+fun PublishStatusBadge(
+    status: String,
+    modifier: Modifier = Modifier
+) {
+    val bgColor: Color
+    val contentColor: Color
+    val icon: ImageVector
+    val label: String
+
+    when (status) {
+        "در حال بررسی" -> {
+            bgColor = Color(0xFFEBF5FB)
+            contentColor = Color(0xFF2980B9)
+            icon = Icons.Filled.Sync
+            label = "در حال بررسی"
+        }
+        "خطا در ارسال" -> {
+            bgColor = Color(0xFFFDEDEC)
+            contentColor = Color(0xFFCB4335)
+            icon = Icons.Filled.Error
+            label = "خطا در ارسال"
+        }
+        else -> { // "منتشر شده"
+            bgColor = Color(0xFFEAFAF1)
+            contentColor = Color(0xFF27AE60)
+            icon = Icons.Filled.CheckCircle
+            label = "منتشر شده"
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bgColor)
+            .border(
+                width = 0.5.dp,
+                color = contentColor.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (status == "در حال بررسی") {
+                val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
+                val rotationAngle by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "rotation"
+                )
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier
+                        .size(12.dp)
+                        .graphicsLayer(rotationZ = rotationAngle)
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
 fun PublishPlatformBadge(
     platformName: String,
     isPublished: Boolean,
@@ -874,21 +965,68 @@ fun AddAdTab(
         imageUrl: String?
     ) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var priceStr by remember { mutableStateOf("") }
-    var areaStr by remember { mutableStateOf("") }
-    var roomsStr by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("فروش مسکونی") }
-    var location by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("mahoor_ad_draft", android.content.Context.MODE_PRIVATE) }
 
-    var pubDivar by remember { mutableStateOf(true) }
-    var pubSheypoor by remember { mutableStateOf(true) }
-    var pubMahoor by remember { mutableStateOf(true) }
+    var title by remember { mutableStateOf(prefs.getString("title", "") ?: "") }
+    var priceStr by remember { mutableStateOf(prefs.getString("priceStr", "") ?: "") }
+    var areaStr by remember { mutableStateOf(prefs.getString("areaStr", "") ?: "") }
+    var roomsStr by remember { mutableStateOf(prefs.getString("roomsStr", "") ?: "") }
+    var type by remember { mutableStateOf(prefs.getString("type", "فروش مسکونی") ?: "فروش مسکونی") }
+    var location by remember { mutableStateOf(prefs.getString("location", "") ?: "") }
+    var description by remember { mutableStateOf(prefs.getString("description", "") ?: "") }
 
-    var imageUrl by remember { mutableStateOf<String?>(null) }
+    var pubDivar by remember { mutableStateOf(prefs.getBoolean("pubDivar", true)) }
+    var pubSheypoor by remember { mutableStateOf(prefs.getBoolean("pubSheypoor", true)) }
+    var pubMahoor by remember { mutableStateOf(prefs.getBoolean("pubMahoor", true)) }
+
+    var imageUrl by remember { mutableStateOf(prefs.getString("imageUrl", null)) }
     var showValidationError by remember { mutableStateOf(false) }
-    var currentStep by remember { mutableStateOf(1) }
+    var currentStep by remember { mutableStateOf(prefs.getInt("currentStep", 1)) }
+    var showAdPreviewDialog by remember { mutableStateOf(false) }
+
+    var lastAutosavedTime by remember { mutableStateOf<String?>(null) }
+
+    val sdf = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.US) }
+
+    val clearDraft: () -> Unit = {
+        prefs.edit().clear().apply()
+        title = ""
+        priceStr = ""
+        areaStr = ""
+        roomsStr = ""
+        type = "فروش مسکونی"
+        location = ""
+        description = ""
+        pubDivar = true
+        pubSheypoor = true
+        pubMahoor = true
+        imageUrl = null
+        currentStep = 1
+        lastAutosavedTime = null
+    }
+
+    LaunchedEffect(title, priceStr, areaStr, roomsStr, type, location, description, pubDivar, pubSheypoor, pubMahoor, imageUrl, currentStep) {
+        prefs.edit().apply {
+            putString("title", title)
+            putString("priceStr", priceStr)
+            putString("areaStr", areaStr)
+            putString("roomsStr", roomsStr)
+            putString("type", type)
+            putString("location", location)
+            putString("description", description)
+            putBoolean("pubDivar", pubDivar)
+            putBoolean("pubSheypoor", pubSheypoor)
+            putBoolean("pubMahoor", pubMahoor)
+            putString("imageUrl", imageUrl)
+            putInt("currentStep", currentStep)
+            apply()
+        }
+        if (title.isNotEmpty() || priceStr.isNotEmpty() || areaStr.isNotEmpty() || location.isNotEmpty() || description.isNotEmpty()) {
+            val formattedTime = sdf.format(java.util.Date()).toPersianDigits()
+            lastAutosavedTime = "پیش‌نویس به صورت خودکار در ساعت $formattedTime ذخیره شد"
+        }
+    }
 
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
@@ -946,6 +1084,20 @@ fun AddAdTab(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        if (showAdPreviewDialog) {
+            AdPreviewDialog(
+                title = title,
+                description = description,
+                price = priceStr.toLongOrNull() ?: 0L,
+                type = type,
+                location = location,
+                area = areaStr.toIntOrNull() ?: 0,
+                rooms = roomsStr.toIntOrNull() ?: 0,
+                imageUrl = imageUrl,
+                onDismiss = { showAdPreviewDialog = false }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1392,6 +1544,35 @@ fun AddAdTab(
                             }
                         }
 
+                        // Live interactive simulator preview trigger
+                        Button(
+                            onClick = { showAdPreviewDialog = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("btn_show_preview"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MahoorPrimary.copy(alpha = 0.12f),
+                                contentColor = MahoorPrimary
+                            ),
+                            border = BorderStroke(1.5.dp, MahoorPrimary.copy(alpha = 0.4f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Visibility,
+                                contentDescription = null,
+                                tint = MahoorPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "🔍 پیش‌نمایش زنده آگهی در دیوار و شیپور",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MahoorPrimary
+                            )
+                        }
+
                         // Connected target gateways
                         PublishTargetGatewaysCard(
                             pubDivar = pubDivar,
@@ -1515,6 +1696,666 @@ fun AddAdTab(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------
+// LIVE INTERACTIVE PREVIEW SIMULATOR (DIVAR & SHEYPOOR)
+// -----------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdPreviewDialog(
+    title: String,
+    description: String,
+    price: Long,
+    type: String,
+    location: String,
+    area: Int,
+    rooms: Int,
+    imageUrl: String?,
+    onDismiss: () -> Unit
+) {
+    var selectedPreviewTab by remember { mutableStateOf(0) } // 0: Divar, 1: Sheypoor
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(24.dp),
+            color = MahoorSurface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Top header of the preview Dialog
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Visibility,
+                            contentDescription = null,
+                            tint = MahoorPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "پیش‌نمایش زنده آگهی همگام‌ساز",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MahoorPrimary
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "بستن",
+                            tint = MahoorOnBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "نمای آگهی شما بعد از ارسال نهایی و همزمان به پلتفرم‌های دیوار و شیپور به صورت زیر خواهد بود:",
+                    fontSize = 10.sp,
+                    color = MahoorOnBackground.copy(alpha = 0.6f),
+                    lineHeight = 15.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                // Tab Selector (Divar vs Sheypoor Redirection)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MahoorSurfaceVariant)
+                        .padding(4.dp)
+                ) {
+                    // Divar Tab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selectedPreviewTab == 0) DivarBrandRed.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable { selectedPreviewTab = 0 }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(DivarBrandRed))
+                            Text(
+                                text = "پیش‌نمایش دیوار",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedPreviewTab == 0) DivarBrandRed else MahoorOnBackground
+                            )
+                        }
+                    }
+
+                    // Sheypoor Tab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selectedPreviewTab == 1) SheypoorBrandBlue.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable { selectedPreviewTab = 1 }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SheypoorBrandBlue))
+                            Text(
+                                text = "پیش‌نمایش شیپور",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedPreviewTab == 1) SheypoorBrandBlue else MahoorOnBackground
+                            )
+                        }
+                    }
+                }
+
+                // Phone Frame Simulator Container
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(Color(0xFFF9F9FB), RoundedCornerShape(16.dp))
+                        .border(1.5.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    if (selectedPreviewTab == 0) {
+                        DivarSimulationPage(
+                            title = title,
+                            description = description,
+                            price = price,
+                            type = type,
+                            location = location,
+                            area = area,
+                            rooms = rooms,
+                            imageUrl = imageUrl
+                        )
+                    } else {
+                        SheypoorSimulationPage(
+                            title = title,
+                            description = description,
+                            price = price,
+                            type = type,
+                            location = location,
+                            area = area,
+                            rooms = rooms,
+                            imageUrl = imageUrl
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DivarSimulationPage(
+    title: String,
+    description: String,
+    price: Long,
+    type: String,
+    location: String,
+    area: Int,
+    rooms: Int,
+    imageUrl: String?
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // Mock Divar Top App Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                     imageVector = Icons.Filled.Share,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(18.dp)
+                )
+                Icon(
+                    imageVector = Icons.Filled.Bookmark,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = "جزئیات آگهی دیوار",
+                color = Color.Black,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Icon(
+                imageVector = Icons.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEEEEE)))
+
+        // Page content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            // Main image
+            if (!imageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                ) {
+                    coil.compose.AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .background(Color(0xFFF5F5F5)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.AddAPhoto,
+                            contentDescription = null,
+                            tint = Color.LightGray,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "آگهی بدون تصویر",
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = title.ifBlank { "عنوان آگهی (تعیین نشده)" },
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                Text(
+                    text = "دقایقی پیش در $location",
+                    color = Color.Gray,
+                    fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF5F5F5)))
+
+                // Divar standard 3-grid metrics
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFFE5E5E5), RoundedCornerShape(8.dp))
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("متراژ", color = Color.Gray, fontSize = 9.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${area.toString().toPersianDigits()}",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(20.dp).background(Color(0xFFE5E5E5)))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("اتاق خواب", color = Color.Gray, fontSize = 9.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${rooms.toString().toPersianDigits()}",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(20.dp).background(Color(0xFFE5E5E5)))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("سال ساخت", color = Color.Gray, fontSize = 9.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "۱۴۰۳",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF5F5F5)))
+
+                // Detail list
+                val priceFormatted = price.formatToShortPersianPrice()
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = priceFormatted, color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "قیمت کل", color = Color.Gray, fontSize = 11.sp)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = type, color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "نوع معامله", color = Color.Gray, fontSize = 11.sp)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = "مشاور املاک ماهور (هوشمند)", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "آگهی‌دهنده", color = Color.Gray, fontSize = 11.sp)
+                }
+
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF5F5F5)))
+
+                Text(
+                    text = "توضیحات",
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                Text(
+                    text = description.ifBlank { "توضیحی ثبت نشده است." },
+                    color = Color.DarkGray,
+                    fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+
+        // Persistent mobile Divar Footer buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DivarBrandRed),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(text = "اطلاعات تماس", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(
+                onClick = {},
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.DarkGray),
+                border = BorderStroke(1.dp, Color.LightGray)
+            ) {
+                Text(text = "چت دیوار", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun SheypoorSimulationPage(
+    title: String,
+    description: String,
+    price: Long,
+    type: String,
+    location: String,
+    area: Int,
+    rooms: Int,
+    imageUrl: String?
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF9F9FB))
+    ) {
+        // Sheypoor Header (Sky Blue)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(SheypoorBrandBlue)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Share,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "شیپور",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Black
+            )
+            Icon(
+                imageVector = Icons.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        // Sheypoor View Detail Page Scrollable Area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
+            // Main image with a styled gallery look
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .background(Color(0xFFE8ECEF))
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    coil.compose.AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Image,
+                            contentDescription = null,
+                            tint = Color.DarkGray,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "منتظر تصویر آگهی",
+                            color = Color.DarkGray,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            // Body
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Price Tag (Displayed Large on Sheypoor)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SheypoorBrandBlue.copy(alpha = 0.08f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = price.formatToPersianPrice(),
+                            color = SheypoorBrandBlue,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "قیمت کل",
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                Text(
+                    text = title.ifBlank { "بدون عنوان" },
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "محله ملک: $location",
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = SheypoorBrandBlue,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEFEFEF)))
+
+                // Specification Bubble Chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Metraj Chip
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
+                            .background(Color.White)
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(imageVector = Icons.Filled.AspectRatio, contentDescription = null, tint = SheypoorBrandBlue, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "${area.toString().toPersianDigits()} متر", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
+                    }
+
+                    // Rooms Chip
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
+                            .background(Color.White)
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(imageVector = Icons.Filled.MeetingRoom, contentDescription = null, tint = SheypoorBrandBlue, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "${rooms.toString().toPersianDigits()} اتاق", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
+                    }
+
+                    // Category Type Chip
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
+                            .background(Color.White)
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(imageVector = Icons.Filled.Home, contentDescription = null, tint = SheypoorBrandBlue, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = type, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEFEFEF)))
+
+                Text(
+                    text = "جزئیات آگهی شیپور",
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+
+                Text(
+                    text = description.ifBlank { "توضیحاتی برای این آگهی وارد نشده است." },
+                    color = Color.DarkGray,
+                    fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+
+        // Sheypoor Call Action Bottom Footer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(8.dp)
+        ) {
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SheypoorBrandBlue),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Text(text = "تماس با آگهی‌دهنده", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
