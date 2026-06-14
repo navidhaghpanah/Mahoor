@@ -34,3 +34,20 @@ data class ChannelCredential(
     val phoneNumber: String = "",
     val syncStatus: String = "متصل" // "متصل", "غیرفعال", "خطای اتصال"
 )
+
+@Entity(tableName = "agent_profile")
+data class AgentProfile(
+    @PrimaryKey val id: Int = 1,
+    val fullName: String,
+    val agencyName: String,
+    val licenseNumber: String,
+    val phoneNumber: String,
+    val email: String,
+    val agencyAddress: String,
+    val currentPlan: String, // e.g. "حرفه‌ای طلایی", "ویژه ۳ ستاره", "پایه رایگان"
+    val planExpiryDate: String, // e.g. "۱۴۰۶/۰۳/۲۵"
+    val adsLimitRemaining: Int,
+    val totalAdsAllowed: Int,
+    val directSyncLimitRemaining: Int,
+    val totalDirectSyncLimit: Int
+)

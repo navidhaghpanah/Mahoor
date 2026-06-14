@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
 @Composable
@@ -43,7 +44,7 @@ fun SplashLogoScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF9F7F2)) // Majestic corporate ivory background
+            .background(MahoorDarkBg) // Majestic corporate dark navy background
             .testTag("splash_logo_screen_root"),
         contentAlignment = Alignment.Center
     ) {
@@ -56,11 +57,15 @@ fun SplashLogoScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
-            // Premium Corporate Logo
+            // Premium Corporate Logo adapted for navy background
             MahoorBrandLogo(
                 scale = 1.3f,
                 showText = true,
-                animate = true
+                animate = true,
+                backgroundColor = MahoorDarkBg,
+                textColor = Color.White,
+                drawColor = MahoorPrimary,
+                accentColor = MahoorPrimary
             )
 
             Column(
@@ -72,7 +77,7 @@ fun SplashLogoScreen(
                 Text(
                     text = statusText,
                     fontSize = 12.sp,
-                    color = Color(0xFF0C2C54),
+                    color = Color.White.copy(alpha = 0.85f),
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("splash_status_text")
                 )
@@ -86,8 +91,8 @@ fun SplashLogoScreen(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .testTag("splash_progress_bar"),
-                    color = Color(0xFFC5A059), // Gold loading accent
-                    trackColor = Color(0xFF0C2C54).copy(alpha = 0.1f)
+                    color = MahoorPrimary, // Gold loading accent
+                    trackColor = MahoorPrimary.copy(alpha = 0.15f)
                 )
             }
         }

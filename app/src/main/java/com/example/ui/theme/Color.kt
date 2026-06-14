@@ -2,15 +2,15 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val MahoorPrimary = Color(0xFFD4AF37)     // Warm Rich Gold
-val MahoorSecondary = Color(0xFFE5D5C5)   // Light Sand Accent
-val MahoorDarkBg = Color(0xFF0F131A)      // Luxury Deep Off-Black / Charcoal
-val MahoorSurface = Color(0xFF1B2230)     // Deep Slate Surface
-val MahoorSurfaceVariant = Color(0xFF242E40) // Mid slate
-val MahoorOnPrimary = Color(0xFF1B1605)
-val MahoorOnSecondary = Color(0xFF2C251D)
-val MahoorOnBackground = Color(0xFFFAFBFD)
-val MahoorOnSurface = Color(0xFFECEFF4)
+val MahoorPrimary = Color(0xFFC5A059)     // Exact Gold from Logo (MahoorLogoGold)
+val MahoorSecondary = Color(0xFFE5D5C5)   // Sand Accent
+val MahoorDarkBg = Color(0xFF0A192F)      // Luxury Deep Royal Navy Background
+val MahoorSurface = Color(0xFF122C4F)     // Corporate Navy Card Surface
+val MahoorSurfaceVariant = Color(0xFF1D3E6A) // Dynamic highlight border
+val MahoorOnPrimary = Color(0xFF0A192F)    // Dark Navy text on gold background
+val MahoorOnSecondary = Color(0xFF0A192F)
+val MahoorOnBackground = Color(0xFFF9F7F2) // Soft Ivory text for reading
+val MahoorOnSurface = Color(0xFFFFFFFF)    // Crisp white for details
 
 val DivarBrandRed = Color(0xFFA62D37)
 val SheypoorBrandBlue = Color(0xFF005AB5)

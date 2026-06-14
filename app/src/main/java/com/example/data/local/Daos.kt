@@ -1,6 +1,7 @@
 package com.example.data.local
 
 import androidx.room.*
+import com.example.data.model.AgentProfile
 import com.example.data.model.ChannelCredential
 import com.example.data.model.RealEstateAd
 import kotlinx.coroutines.flow.Flow
@@ -45,4 +46,16 @@ interface CredentialDao {
 
     @Query("UPDATE channel_credentials SET isEnabled = :isEnabled WHERE channelName = :channelName")
     suspend fun updateChannelEnabled(channelName: String, isEnabled: Boolean)
+}
+
+@Dao
+interface AgentProfileDao {
+    @Query("SELECT * FROM agent_profile WHERE id = 1")
+    fun getProfileFlow(): Flow<AgentProfile?>
+
+    @Query("SELECT * FROM agent_profile WHERE id = 1")
+    suspend fun getProfile(): AgentProfile?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateProfile(profile: AgentProfile)
 }

@@ -31,7 +31,11 @@ fun MahoorBrandLogo(
     modifier: Modifier = Modifier,
     scale: Float = 1.0f,
     showText: Boolean = true,
-    animate: Boolean = false
+    animate: Boolean = false,
+    backgroundColor: Color = MahoorLogoIvory,
+    textColor: Color = MahoorLogoNavy,
+    accentColor: Color = MahoorLogoGold,
+    drawColor: Color = MahoorLogoNavy
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alphaAnim by if (animate) {
@@ -81,7 +85,7 @@ fun MahoorBrandLogo(
                 // Drawing Background subtle Buildings in Navy Outline
                 // Leftmost lower building
                 drawRect(
-                    color = MahoorLogoNavy,
+                    color = drawColor,
                     topLeft = Offset(w * 0.22f, h * 0.45f),
                     size = Size(w * 0.12f, h * 0.45f),
                     style = Stroke(width = w * 0.03f)
@@ -89,7 +93,7 @@ fun MahoorBrandLogo(
 
                 // Left medium building
                 drawRect(
-                    color = MahoorLogoNavy,
+                    color = drawColor,
                     topLeft = Offset(w * 0.32f, h * 0.30f),
                     size = Size(w * 0.12f, h * 0.60f),
                     style = Stroke(width = w * 0.03f)
@@ -97,19 +101,19 @@ fun MahoorBrandLogo(
 
                 // Center main tall building
                 drawRect(
-                    color = MahoorLogoNavy,
+                    color = drawColor,
                     topLeft = Offset(w * 0.46f, h * 0.18f),
                     size = Size(w * 0.14f, h * 0.72f),
                     style = Stroke(width = w * 0.03f)
                 )
                 // Windows in the central building
-                drawRect(color = MahoorLogoGold, topLeft = Offset(w * 0.51f, h * 0.30f), size = Size(w * 0.04f, h * 0.08f))
-                drawRect(color = MahoorLogoGold, topLeft = Offset(w * 0.51f, h * 0.45f), size = Size(w * 0.04f, h * 0.08f))
-                drawRect(color = MahoorLogoGold, topLeft = Offset(w * 0.51f, h * 0.60f), size = Size(w * 0.04f, h * 0.08f))
+                drawRect(color = accentColor, topLeft = Offset(w * 0.51f, h * 0.30f), size = Size(w * 0.04f, h * 0.08f))
+                drawRect(color = accentColor, topLeft = Offset(w * 0.51f, h * 0.45f), size = Size(w * 0.04f, h * 0.08f))
+                drawRect(color = accentColor, topLeft = Offset(w * 0.51f, h * 0.60f), size = Size(w * 0.04f, h * 0.08f))
 
                 // Right medium building
                 drawRect(
-                    color = MahoorLogoNavy,
+                    color = drawColor,
                     topLeft = Offset(w * 0.58f, h * 0.35f),
                     size = Size(w * 0.12f, h * 0.55f),
                     style = Stroke(width = w * 0.03f)
@@ -117,7 +121,7 @@ fun MahoorBrandLogo(
 
                 // Rightmost low building in gold accent
                 drawRect(
-                    color = MahoorLogoGold,
+                    color = accentColor,
                     topLeft = Offset(w * 0.68f, h * 0.48f),
                     size = Size(w * 0.10f, h * 0.42f),
                     style = Stroke(width = w * 0.03f)
@@ -125,7 +129,7 @@ fun MahoorBrandLogo(
 
                 // Base navy platform bar
                 drawLine(
-                    color = MahoorLogoNavy,
+                    color = drawColor,
                     start = Offset(w * 0.15f, h * 0.90f),
                     end = Offset(w * 0.85f, h * 0.90f),
                     strokeWidth = w * 0.04f
@@ -152,12 +156,12 @@ fun MahoorBrandLogo(
                 // Draw Golden Moon
                 drawPath(
                     path = moonPath,
-                    color = MahoorLogoGold
+                    color = accentColor
                 )
                 // Subtract the inner side to create the elegant crescent look
                 drawPath(
                     path = innerSubtractPath,
-                    color = MahoorLogoIvory.copy(alpha = alphaAnim)
+                    color = backgroundColor.copy(alpha = alphaAnim)
                 )
 
                 // Little golden crescent moon hanging at the peak center
@@ -173,8 +177,8 @@ fun MahoorBrandLogo(
                     val r = h * 0.07f
                     addOval(androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r))
                 }
-                drawPath(path = tinyMoonPath, color = MahoorLogoGold)
-                drawPath(path = tinyMoonSubtract, color = MahoorLogoIvory.copy(alpha = alphaAnim))
+                drawPath(path = tinyMoonPath, color = accentColor)
+                drawPath(path = tinyMoonSubtract, color = backgroundColor.copy(alpha = alphaAnim))
             }
         }
 
@@ -187,7 +191,7 @@ fun MahoorBrandLogo(
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = (28 * scale).sp,
-                color = MahoorLogoNavy,
+                color = textColor,
                 textAlign = TextAlign.Center
             )
 
@@ -199,7 +203,7 @@ fun MahoorBrandLogo(
                 fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.Black,
                 fontSize = (13 * scale).sp,
-                color = MahoorLogoNavy,
+                color = textColor,
                 letterSpacing = 1.sp,
                 textAlign = TextAlign.Center
             )
@@ -211,7 +215,7 @@ fun MahoorBrandLogo(
                 text = "مشاورین املاک و سرمایه گذاری",
                 fontSize = (11 * scale).sp,
                 fontWeight = FontWeight.Medium,
-                color = MahoorLogoGold,
+                color = accentColor,
                 textAlign = TextAlign.Center
             )
         }

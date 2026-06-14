@@ -1,7 +1,9 @@
 package com.example.data.repository
 
+import com.example.data.local.AgentProfileDao
 import com.example.data.local.CredentialDao
 import com.example.data.local.RealEstateDao
+import com.example.data.model.AgentProfile
 import com.example.data.model.ChannelCredential
 import com.example.data.model.RealEstateAd
 import kotlinx.coroutines.delay
@@ -11,12 +13,18 @@ import kotlin.random.Random
 
 class RealEstateRepository(
     private val realEstateDao: RealEstateDao,
-    private val credentialDao: CredentialDao
+    private val credentialDao: CredentialDao,
+    private val agentProfileDao: AgentProfileDao
 ) {
     val allAds: Flow<List<RealEstateAd>> = realEstateDao.getAllAds()
     val allCredentials: Flow<List<ChannelCredential>> = credentialDao.getAllCredentials()
+    val agentProfile: Flow<AgentProfile?> = agentProfileDao.getProfileFlow()
 
     suspend fun getAdById(id: Int): RealEstateAd? = realEstateDao.getAdById(id)
+
+    suspend fun saveProfile(profile: AgentProfile) {
+        agentProfileDao.insertOrUpdateProfile(profile)
+    }
 
     // Simulates publishing an ad across several portals
     suspend fun publishAd(ad: RealEstateAd): Long {
@@ -160,6 +168,27 @@ class RealEstateRepository(
                     apiKey = "https://apify.com/web_scraper/sheypoor-real-estate/api",
                     phoneNumber = "apify-sheypoor-actor",
                     syncStatus = "متصل"
+                )
+            )
+        }
+
+        val existingProfile = agentProfileDao.getProfile()
+        if (existingProfile == null) {
+            agentProfileDao.insertOrUpdateProfile(
+                AgentProfile(
+                    id = 1,
+                    fullName = "آرش رادمنش",
+                    agencyName = "املاک پایتخت شمیرانات (دپارتمان شمال)",
+                    licenseNumber = "ش-۹۸۳۴۲۱",
+                    phoneNumber = "۰۹۱۲۱۲۳۴۵۶۷",
+                    email = "arash.rad@mahoor.com",
+                    agencyAddress = "تهران، شمیرانات، کامرانیه شمالی، ساختمان یاس، طبقه ۳",
+                    currentPlan = "اشتراک طلایی ۳ ستاره (VIP)",
+                    planExpiryDate = "۱۴۰۶/۰۷/۱۵",
+                    adsLimitRemaining = 45,
+                    totalAdsAllowed = 50,
+                    directSyncLimitRemaining = 98,
+                    totalDirectSyncLimit = 100
                 )
             )
         }

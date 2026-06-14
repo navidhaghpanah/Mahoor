@@ -42,6 +42,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.util.Locale
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
+import java.io.FileOutputStream
 
 // Simple integer-to-Persian numbers converter
 fun String.toPersianDigits(): String {
@@ -79,8 +86,10 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
     val ads by viewModel.uiState.collectAsStateWithLifecycle()
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val agentProfile by viewModel.agentProfile.collectAsStateWithLifecycle()
 
-    var activeTab by remember { mutableStateOf(0) } // 0: Ads, 1: Add Ad, 2: Platforms, 3: Analytics & iOS Webapp
+    var activeTab by remember { mutableStateOf(0) } // 0: Ads, 1: Add Ad, 2: Platforms, 3: Analytics & iOS Webapp, 4: Profile & Subscription
+    var editingAd by remember { mutableStateOf<RealEstateAd?>(null) }
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -95,7 +104,11 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                         MahoorBrandLogo(
                             scale = 0.35f,
                             showText = false,
-                            animate = false
+                            animate = false,
+                            backgroundColor = MahoorSurface,
+                            drawColor = MahoorPrimary,
+                            accentColor = MahoorPrimary,
+                            textColor = MahoorPrimary
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -133,6 +146,27 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { activeTab = 4 },
+                        modifier = Modifier.testTag("top_bar_profile_shortcut")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(MahoorPrimary.copy(alpha = 0.15f))
+                                .border(1.dp, MahoorPrimary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = "مشاهده پروفایل کاری",
+                                tint = MahoorPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = { /* Simulated Manual Sync trigger */ },
                         modifier = Modifier.testTag("sync_action_button")
@@ -217,6 +251,20 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                     ),
                     modifier = Modifier.testTag("tab_analytics")
                 )
+                NavigationBarItem(
+                    selected = activeTab == 4,
+                    onClick = { activeTab = 4 },
+                    icon = { Icon(Icons.Filled.Person, contentDescription = "پروفایل") },
+                    label = { Text("اشتراک و پروفایل", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MahoorOnPrimary,
+                        selectedTextColor = MahoorPrimary,
+                        unselectedIconColor = MahoorOnBackground.copy(alpha = 0.6f),
+                        unselectedTextColor = MahoorOnBackground.copy(alpha = 0.6f),
+                        indicatorColor = MahoorPrimary
+                    ),
+                    modifier = Modifier.testTag("tab_profile")
+                )
             }
         }
     ) { innerPadding ->
@@ -238,11 +286,12 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                         ads = ads,
                         credentials = credentials,
                         onDeleteAd = { viewModel.deleteAd(it) },
-                        onToggleStatus = { viewModel.toggleAdStatus(it) }
+                        onToggleStatus = { viewModel.toggleAdStatus(it) },
+                        onEditAd = { editingAd = it }
                     )
                     1 -> AddAdTab(
                         isSyncing = isSyncing,
-                        onPublish = { title, desc, price, type, loc, area, rooms, divar, sheypoor, mahoor ->
+                        onPublish = { title, desc, price, type, loc, area, rooms, divar, sheypoor, mahoor, imageUrl ->
                             viewModel.insertAd(
                                 title = title,
                                 description = desc,
@@ -253,7 +302,8 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                                 rooms = rooms,
                                 publishDivar = divar,
                                 publishSheypoor = sheypoor,
-                                publishMahoor = mahoor
+                                publishMahoor = mahoor,
+                                imageUrl = imageUrl
                             )
                             activeTab = 0 // Auto go back to dashboard
                         }
@@ -278,8 +328,24 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                             )
                         }
                     )
-                    3 -> AnalyticsAndIosTab(ads = ads)
+                    3 -> AnalyticsAndIosTab(ads = ads, viewModel = viewModel)
+                    4 -> ProfileAndSubscriptionTab(
+                        agentProfile = agentProfile,
+                        onUpdateProfile = { viewModel.updateAgentProfile(it) }
+                    )
                 }
+            }
+
+            // Render EditAdDialog overlay if trigger is non-null
+            editingAd?.let { ad ->
+                EditAdDialog(
+                    ad = ad,
+                    onDismiss = { editingAd = null },
+                    onSave = { updated ->
+                        viewModel.updateAd(updated)
+                        editingAd = null
+                    }
+                )
             }
         }
     }
@@ -293,7 +359,8 @@ fun DashboardTab(
     ads: List<RealEstateAd>,
     credentials: List<ChannelCredential>,
     onDeleteAd: (RealEstateAd) -> Unit,
-    onToggleStatus: (RealEstateAd) -> Unit
+    onToggleStatus: (RealEstateAd) -> Unit,
+    onEditAd: (RealEstateAd) -> Unit
 ) {
     if (ads.isEmpty()) {
         Column(
@@ -343,7 +410,8 @@ fun DashboardTab(
                     ad = ad,
                     credentials = credentials,
                     onDeleteAd = { onDeleteAd(ad) },
-                    onToggleStatus = { onToggleStatus(ad) }
+                    onToggleStatus = { onToggleStatus(ad) },
+                    onEditAd = { onEditAd(ad) }
                 )
             }
         }
@@ -410,7 +478,8 @@ fun RealEstateAdCard(
     ad: RealEstateAd,
     credentials: List<ChannelCredential>,
     onDeleteAd: () -> Unit,
-    onToggleStatus: () -> Unit
+    onToggleStatus: () -> Unit,
+    onEditAd: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -423,11 +492,50 @@ fun RealEstateAdCard(
             color = if (ad.isActive) MahoorPrimary.copy(alpha = 0.3f) else Color.Transparent
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Elegant premium image header if present
+            if (!ad.imageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                ) {
+                    coil.compose.AsyncImage(
+                        model = ad.imageUrl,
+                        contentDescription = ad.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                    // A subtle dark gradient overlay
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                                )
+                            )
+                    )
+                }
+            } else {
+                // Symmetrical decorative layout line representing Mahoor Architecture
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(MahoorPrimary.copy(alpha = 0.1f), MahoorPrimary, MahoorPrimary.copy(alpha = 0.1f))
+                            )
+                        )
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
             // Card Title and status switch
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -606,21 +714,40 @@ fun RealEstateAdCard(
                     )
                 }
 
-                // Delete button
-                IconButton(
-                    onClick = { onDeleteAd() },
-                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color(0xFFE74C3C)),
-                    modifier = Modifier.testTag("delete_ad_btn_${ad.id}")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.DeleteOutline,
-                        contentDescription = "حذف آگهی",
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // Edit button
+                    IconButton(
+                        onClick = onEditAd,
+                        colors = IconButtonDefaults.iconButtonColors(contentColor = MahoorPrimary),
+                        modifier = Modifier.testTag("edit_ad_btn_${ad.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = "ویرایش آگهی",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // Delete button
+                    IconButton(
+                        onClick = { onDeleteAd() },
+                        colors = IconButtonDefaults.iconButtonColors(contentColor = Color(0xFFE74C3C)),
+                        modifier = Modifier.testTag("delete_ad_btn_${ad.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteOutline,
+                            contentDescription = "حذف آگهی",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
     }
+}
 }
 
 @Composable
@@ -728,7 +855,7 @@ fun StatChip(
 
 
 // -----------------------------------------------------------------
-// TAB 1: ADD AD TAB (DETAILED POSTING ENTRY & CENTRALIZED GATEWAY PUBLISHING)
+// TAB 1: ADD AD TAB (DETAILED POSTING ENTRY & CENTRALIZED GATEWAY PUBLISHING - CAMERA ENABLED)
 // -----------------------------------------------------------------
 @Composable
 fun AddAdTab(
@@ -743,7 +870,8 @@ fun AddAdTab(
         rooms: Int,
         publishDivar: Boolean,
         publishSheypoor: Boolean,
-        publishMahoor: Boolean
+        publishMahoor: Boolean,
+        imageUrl: String?
     ) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -758,93 +886,724 @@ fun AddAdTab(
     var pubSheypoor by remember { mutableStateOf(true) }
     var pubMahoor by remember { mutableStateOf(true) }
 
-    val scrollState = rememberScrollState()
-
+    var imageUrl by remember { mutableStateOf<String?>(null) }
     var showValidationError by remember { mutableStateOf(false) }
+    var currentStep by remember { mutableStateOf(1) }
 
-    Column(
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Camera launcher returning dynamic Bitmaps (Direct & lightweight approach)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            try {
+                val file = File(context.cacheDir, "mahoor_camera_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                }
+                imageUrl = file.absolutePath
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Gallery launcher for selecting existing luxury assets
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            imageUrl = uri.toString()
+        }
+    }
+
+    // High fidelity preset real estate options for quick simulation/demonstration
+    val simulatedPresets = listOf(
+        Pair("پنت‌هاوس مدرن فرمانیه", "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600"),
+        Pair("ویلای استخردار لواسان", "https://images.unsplash.com/photo-1613977257363-707ba9348227?w=600"),
+        Pair("برج باغ رویال الهیه", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600"),
+        Pair("آپارتمان دیزاین‌شده قیطریه", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600")
+    )
+
+    // Helper step validator
+    fun validateCurrentStep(): Boolean {
+        return when (currentStep) {
+            1 -> title.isNotBlank() && location.isNotBlank()
+            2 -> {
+                val areaNum = areaStr.toIntOrNull()
+                val priceNum = priceStr.toLongOrNull()
+                areaNum != null && areaNum > 0 && priceNum != null && priceNum > 0
+            }
+            else -> true
+        }
+    }
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .verticalScroll(scrollState)
     ) {
-        Text(
-            text = "ثبت و انتشار هوشمند آگهی ملکی",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MahoorPrimary,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-        Text(
-            text = "اطلاعات ملک را وارد کنید. سیستم املاک ماهور به همراه انتشار در پورتال خود، آگهی را به طور خودکار به دیوار و شیپور متصل ارسال می‌نماید.",
-            fontSize = 13.sp,
-            color = MahoorOnBackground.copy(alpha = 0.7f),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // General Info panel
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MahoorSurface)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            // Elegant wizard header with progress details
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                border = BorderStroke(1.dp, MahoorSurfaceVariant)
             ) {
-                // Dropdown or Row selector for property Type
-                Text(
-                    text = "نوع معامله و ملک",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MahoorPrimary
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val types = listOf("فروش مسکونی", "رهن و اجاره", "تجاری و اداری", "خرید/فروش زمین")
-                    types.forEach { item ->
-                        val selected = type == item
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) MahoorPrimary else MahoorSurfaceVariant)
-                                .clickable { type = item }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "ثبت‌نام گام‌به‌گام و انتشار همزمان",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MahoorPrimary
+                            )
+                            Text(
+                                text = "آماده‌سازی یکپارچه جهت ارسال آنی به سایت‌های دیوار و شیپور",
+                                fontSize = 11.sp,
+                                color = MahoorOnBackground.copy(alpha = 0.6f)
+                            )
+                        }
+                        
+                        Text(
+                            text = "گام ${currentStep.toString().toPersianDigits()} از ۴",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MahoorPrimary
+                        )
+                    }
+
+                    // Numeric Step Progress Line Indicator
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val stepsMeta = listOf(
+                            Triple(1, "پایه ملک", Icons.Filled.Info),
+                            Triple(2, "فنی و مالی", Icons.Filled.Payments),
+                            Triple(3, "رسانه و متن", Icons.Filled.AddAPhoto),
+                            Triple(4, "ارسال نهایی", Icons.Filled.CloudUpload)
+                        )
+                        
+                        stepsMeta.forEachIndexed { index, (stepNum, stepLabel, icon) ->
+                            val isCurrent = currentStep == stepNum
+                            val isPast = currentStep > stepNum
+                            
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isCurrent) MahoorPrimary 
+                                            else if (isPast) MahoorPrimary.copy(alpha = 0.2f) 
+                                            else MahoorSurfaceVariant
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isPast) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = null,
+                                            tint = MahoorPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (isCurrent) Color.White else MahoorOnBackground.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stepLabel,
+                                    fontSize = 9.sp,
+                                    color = if (isCurrent) MahoorPrimary else MahoorOnBackground.copy(alpha = 0.5f),
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            
+                            if (index < stepsMeta.size - 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(0.3f)
+                                        .height(1.5.dp)
+                                        .background(
+                                            if (currentStep > stepNum) MahoorPrimary 
+                                            else MahoorSurfaceVariant
+                                        )
+                                        .align(Alignment.CenterVertically)
+                                )
+                            }
+                        }
+                    }
+
+                    // Stepper horizontal line
+                    LinearProgressIndicator(
+                        progress = { currentStep.toFloat() / 4f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp)),
+                        color = MahoorPrimary,
+                        trackColor = MahoorSurfaceVariant,
+                    )
+                }
+            }
+
+            // Render form step blocks
+            when (currentStep) {
+                1 -> {
+                    // Step 1: Basic specifications
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(
-                                text = item,
-                                color = if (selected) MahoorOnPrimary else MahoorOnBackground,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
+                                text = "مشخصات اولیه و نوع معامله",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MahoorPrimary
                             )
+
+                            // Selector for property transaction Type
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(text = "دسته‌بندی ملک:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.6f))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val types = listOf("فروش مسکونی", "رهن و اجاره", "تجاری و اداری", "خرید/فروش زمین")
+                                    types.forEach { item ->
+                                        val selected = type == item
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (selected) MahoorPrimary else MahoorSurfaceVariant)
+                                                .clickable { type = item }
+                                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = item,
+                                                color = if (selected) Color.White else MahoorOnBackground,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Title
+                            OutlinedTextField(
+                                value = title,
+                                onValueChange = { title = it },
+                                label = { Text("عنوان آگهی (مثال: آپارتمان لوکس ۱۲۰ متری زعفرانیه)") },
+                                textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_title"),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MahoorPrimary,
+                                    unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                                    focusedLabelColor = MahoorPrimary,
+                                    cursorColor = MahoorPrimary
+                                )
+                            )
+
+                            // Location with quick recommendation tags
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = location,
+                                    onValueChange = { location = it },
+                                    label = { Text("موقعیت ملک و محله (مثال: تهران، نیاوران)") },
+                                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_location"),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MahoorPrimary,
+                                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                                        focusedLabelColor = MahoorPrimary,
+                                        cursorColor = MahoorPrimary
+                                    )
+                                )
+
+                                // Quick recommendation tags
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "انتخاب سریع محله:",
+                                        fontSize = 10.sp,
+                                        color = MahoorOnBackground.copy(alpha = 0.5f)
+                                    )
+                                    val fastLocations = listOf("نیاوران", "فرمانیه", "زعفرانیه", "پاسداران", "الهیه", "سعادت‌آباد")
+                                    fastLocations.forEach { locName ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(MahoorSurfaceVariant)
+                                                .clickable { location = "تهران، $locName" }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = locName,
+                                                fontSize = 10.sp,
+                                                color = MahoorPrimary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+                2 -> {
+                    // Step 2: Technical/Financial details
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "اطلاعات فنی و قیمت ملکی",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MahoorPrimary
+                            )
 
-                // Title
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("عنوان آگهی (مثال: آپارتمان لوکس ۱۲۰ متری زعفرانیه)") },
-                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = areaStr,
+                                    onValueChange = { areaStr = it },
+                                    label = { Text("متراژ (متر مربع)") },
+                                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("input_area"),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MahoorPrimary,
+                                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                                        focusedLabelColor = MahoorPrimary,
+                                        cursorColor = MahoorPrimary
+                                    )
+                                )
+
+                                OutlinedTextField(
+                                    value = roomsStr,
+                                    onValueChange = { roomsStr = it },
+                                    label = { Text("تعداد اتاق") },
+                                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("input_rooms"),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MahoorPrimary,
+                                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                                        focusedLabelColor = MahoorPrimary,
+                                        cursorColor = MahoorPrimary
+                                    )
+                                )
+                            }
+
+                            // Price input
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(
+                                    value = priceStr,
+                                    onValueChange = { priceStr = it },
+                                    label = { Text("قیمت کل (تومان)") },
+                                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_price"),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MahoorPrimary,
+                                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                                        focusedLabelColor = MahoorPrimary,
+                                        cursorColor = MahoorPrimary
+                                    )
+                                )
+
+                                // Real-time verbal translation to persian
+                                val parsedPrice = priceStr.toLongOrNull()
+                                AnimatedVisibility(
+                                    visible = parsedPrice != null && parsedPrice > 0,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut() + shrinkVertically()
+                                ) {
+                                    if (parsedPrice != null) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Payments,
+                                                contentDescription = null,
+                                                tint = MahoorPrimary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "مبلغ معادل: " + parsedPrice.formatToShortPersianPrice(),
+                                                color = MahoorPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                3 -> {
+                    // Step 3: Media presets & supplemental details
+                    MediaUploadCard(
+                        imageUrl = imageUrl,
+                        onChangeImage = { imageUrl = it },
+                        onLaunchCamera = { cameraLauncher.launch(null) },
+                        onLaunchGallery = { galleryLauncher.launch("image/*") },
+                        simulatedPresets = simulatedPresets
+                    )
+
+                    DescriptionCard(
+                        description = description,
+                        onDescriptionChange = { description = it }
+                    )
+                }
+                4 -> {
+                    // Step 4: Final verification and publish platforms checklist
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                            border = BorderStroke(1.dp, MahoorPrimary.copy(alpha = 0.25f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "خلاصه مشخصات آگهی جهت انتشار همزمان",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MahoorPrimary,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+
+                                if (!imageUrl.isNullOrBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(130.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                    ) {
+                                        coil.compose.AsyncImage(
+                                            model = imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
+                                    }
+                                }
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("عنوان آگهی:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("نوع معامله:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    Text(type, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahoorPrimary)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("محله ملک:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    Text(location, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("متراژ:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    Text("${areaStr.toPersianDigits()} متر مربع", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("تعداد خواب:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    Text(if (roomsStr.isBlank()) "بدون اتاق" else "${roomsStr.toPersianDigits()} خواب", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("قیمت ثبت آگهی:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.55f))
+                                    val valPrice = priceStr.toLongOrNull()
+                                    Text(valPrice?.formatToShortPersianPrice() ?: "نامشخص", fontSize = 12.sp, fontWeight = FontWeight.Black, color = MahoorPrimary)
+                                }
+                            }
+                        }
+
+                        // Connected target gateways
+                        PublishTargetGatewaysCard(
+                            pubDivar = pubDivar,
+                            onDivarChange = { pubDivar = it },
+                            pubSheypoor = pubSheypoor,
+                            onSheypoorChange = { pubSheypoor = it },
+                            pubMahoor = pubMahoor,
+                            onMahoorChange = { pubMahoor = it }
+                        )
+                    }
+                }
+            }
+
+            // Error Warning Panel (under current inputs)
+            if (showValidationError) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("input_title"),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MahoorPrimary,
-                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                        focusedLabelColor = MahoorPrimary
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFE74C3C),
+                        modifier = Modifier.size(16.dp)
                     )
-                )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    val errLabel = when (currentStep) {
+                        1 -> "ورود عنوان آگهی و موقعیت محله ملک الزامی است."
+                        2 -> "ورود معتبر متراژ و قیمت معامله الزامی است."
+                        else -> "لطفاً جزییات را تکمیل فرمایید."
+                    }
+                    Text(
+                        text = errLabel,
+                        color = Color(0xFFE74C3C),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
-                // Location
+            // Universal phase buttons controls
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Return backward
+                if (currentStep > 1) {
+                    OutlinedButton(
+                        onClick = { currentStep-- },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MahoorPrimary),
+                        border = BorderStroke(1.dp, MahoorPrimary.copy(alpha = 0.4f))
+                    ) {
+                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("مرحله قبلی", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Proceed forward
+                if (currentStep < 4) {
+                    Button(
+                        onClick = {
+                            if (validateCurrentStep()) {
+                                showValidationError = false
+                                currentStep++
+                            } else {
+                                showValidationError = true
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MahoorPrimary)
+                    ) {
+                        Text("مرحله بعدی", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(imageVector = Icons.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                } else {
+                    // Final Submit Trigger
+                    Button(
+                        onClick = {
+                            val priceNum = priceStr.toLongOrNull()
+                            val areaNum = areaStr.toIntOrNull()
+                            val roomsNum = roomsStr.toIntOrNull() ?: 0
+
+                            if (title.isBlank() || location.isBlank() || priceNum == null || areaNum == null) {
+                                currentStep = 1
+                                showValidationError = true
+                            } else {
+                                showValidationError = false
+                                onPublish(title, description, priceNum, type, location, areaNum, roomsNum, pubDivar, pubSheypoor, pubMahoor, imageUrl)
+                            }
+                        },
+                        enabled = !isSyncing,
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .height(48.dp)
+                            .testTag("btn_trigger_publish"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MahoorPrimary)
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("در حال ارسال به درگاه‌ها...", fontSize = 11.sp, color = Color.White)
+                        } else {
+                            Icon(imageVector = Icons.Filled.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("انتشار همزمان در دیوار و شیپور", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Sub-component: Main Specifications Form Area
+@Composable
+fun SpecificationsFormCard(
+    type: String,
+    onTypeChange: (String) -> Unit,
+    title: String,
+    onTitleChange: (String) -> Unit,
+    location: String,
+    onLocationChange: (String) -> Unit,
+    priceStr: String,
+    onPriceChange: (String) -> Unit,
+    areaStr: String,
+    onAreaChange: (String) -> Unit,
+    roomsStr: String,
+    onRoomsChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "مشخصات معامله و ملک",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MahoorPrimary
+            )
+
+            // Selector for property transaction Type
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val types = listOf("فروش مسکونی", "رهن و اجاره", "تجاری و اداری", "خرید/فروش زمین")
+                types.forEach { item ->
+                    val selected = type == item
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) MahoorPrimary else MahoorSurfaceVariant)
+                            .clickable { onTypeChange(item) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = item,
+                            color = if (selected) MahoorOnPrimary else MahoorOnBackground,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            // Title
+            OutlinedTextField(
+                value = title,
+                onValueChange = onTitleChange,
+                label = { Text("عنوان آگهی (مثال: آپارتمان لوکس ۱۲۰ متری زعفرانیه)") },
+                textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("input_title"),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MahoorPrimary,
+                    unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                    focusedLabelColor = MahoorPrimary,
+                    cursorColor = MahoorPrimary
+                )
+            )
+
+            // Location with quick recommendation tags
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = location,
-                    onValueChange = { location = it },
-                    label = { Text("موقعیت ملک (مثال: تهران، نیاوران)") },
+                    onValueChange = onLocationChange,
+                    label = { Text("موقعیت ملک (مثال: تهران، پاسداران)") },
                     textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -853,241 +1612,546 @@ fun AddAdTab(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MahoorPrimary,
                         unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                        focusedLabelColor = MahoorPrimary
+                        focusedLabelColor = MahoorPrimary,
+                        cursorColor = MahoorPrimary
                     )
                 )
 
-                // Grid of numeric specs: Price, Area, Rooms
+                // Quick recommendation tags
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = priceStr,
-                        onValueChange = { priceStr = it },
-                        label = { Text("قیمت (تومان)") },
-                        textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .weight(1.5f)
-                            .testTag("input_price"),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MahoorPrimary,
-                            unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                            focusedLabelColor = MahoorPrimary
-                        )
-                    )
-                }
-
-                // Help show readable format word-translated cost
-                priceStr.toLongOrNull()?.let { numPrice ->
-                    Text(
-                        text = "محاسبه قیمتی: " + numPrice.formatToShortPersianPrice(),
-                        color = MahoorPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = areaStr,
-                        onValueChange = { areaStr = it },
-                        label = { Text("متراژ (متر)") },
-                        textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("input_area"),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MahoorPrimary,
-                            unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                            focusedLabelColor = MahoorPrimary
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = roomsStr,
-                        onValueChange = { roomsStr = it },
-                        label = { Text("تعداد اتاق") },
-                        textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("input_rooms"),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MahoorPrimary,
-                            unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                            focusedLabelColor = MahoorPrimary
-                        )
-                    )
-                }
-
-                // Description
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("توضیحات تکمیلی ملک (ویژگی‌ها، مشاعات و...)") },
-                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(110.dp)
-                        .testTag("input_desc"),
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "محله‌های پرتقاضا:",
+                        fontSize = 10.sp,
+                        color = MahoorOnBackground.copy(alpha = 0.5f)
+                    )
+                    val fastLocations = listOf("زعفرانیه", "نیاوران", "فرمانیه", "پاسداران", "الهیه", "سعادت‌آباد")
+                    fastLocations.forEach { locName ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MahoorSurfaceVariant)
+                                .clickable { onLocationChange("تهران، $locName") }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = locName,
+                                fontSize = 10.sp,
+                                color = MahoorPrimary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Price and translator info
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(
+                    value = priceStr,
+                    onValueChange = onPriceChange,
+                    label = { Text("قیمت (تومان)") },
+                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("input_price"),
+                    singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MahoorPrimary,
                         unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
-                        focusedLabelColor = MahoorPrimary
+                        focusedLabelColor = MahoorPrimary,
+                        cursorColor = MahoorPrimary
+                    )
+                )
+
+                // Live short translated gold pricing words
+                val parsedPrice = priceStr.toLongOrNull()
+                AnimatedVisibility(
+                    visible = parsedPrice != null && parsedPrice > 0,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    if (parsedPrice != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Payments,
+                                contentDescription = null,
+                                tint = MahoorPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "مبلغ معادل: " + parsedPrice.formatToShortPersianPrice(),
+                                color = MahoorPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Area Size & Rooms inside a balanced Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = areaStr,
+                    onValueChange = onAreaChange,
+                    label = { Text("متراژ (متر مربع)") },
+                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("input_area"),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MahoorPrimary,
+                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                        focusedLabelColor = MahoorPrimary,
+                        cursorColor = MahoorPrimary
+                    )
+                )
+
+                OutlinedTextField(
+                    value = roomsStr,
+                    onValueChange = onRoomsChange,
+                    label = { Text("تعداد اتاق") },
+                    textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("input_rooms"),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MahoorPrimary,
+                        unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                        focusedLabelColor = MahoorPrimary,
+                        cursorColor = MahoorPrimary
                     )
                 )
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Gateways publishing checkboxes
-        Text(
-            text = "انتخاب درگاه‌های متصل انتشار همزمان",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MahoorPrimary,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MahoorSurface)
+// Sub-component: Camera Image / Photo Uploading Controller
+@Composable
+fun MediaUploadCard(
+    imageUrl: String?,
+    onChangeImage: (String?) -> Unit,
+    onLaunchCamera: () -> Unit,
+    onLaunchGallery: () -> Unit,
+    simulatedPresets: List<Pair<String, String>>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Divar Switch Selection
-                Row(
+            Text(
+                text = "تصویر و مدیا ملک",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MahoorPrimary
+            )
+
+            // Current asset preview box
+            if (!imageUrl.isNullOrEmpty()) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { pubDivar = !pubDivar }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, MahoorPrimary.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(DivarBrandRed)
+                    coil.compose.AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Property Media",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+
+                    // Overlay options bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (imageUrl.startsWith("/")) "تصویر ثبت‌شده با دوربین" else "تصویر بارگذاری شده",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(text = "انتشار مستقیم در دیوار", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
-                            Text(text = "نیازمند توکن درگاه فعال در تنظیمات", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+
+                        IconButton(
+                            onClick = { onChangeImage(null) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DeleteOutline,
+                                contentDescription = "Remove Media",
+                                tint = Color(0xFFE74C3C),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
-                    Checkbox(
-                        checked = pubDivar,
-                        onCheckedChange = { pubDivar = it },
-                        colors = CheckboxDefaults.colors(checkedColor = DivarBrandRed),
-                        modifier = Modifier.testTag("checkbox_divar")
+                }
+            } else {
+                // Interactive dashed drop-zone area
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MahoorDarkBg.copy(alpha = 0.4f))
+                        .border(
+                            width = 1.dp,
+                            color = MahoorPrimary.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AddAPhoto,
+                            contentDescription = null,
+                            tint = MahoorPrimary.copy(alpha = 0.6f),
+                            modifier = Modifier.size(34.dp)
+                        )
+                        Text(
+                            text = "عکسی برای ملک ثبت نشده است",
+                            fontSize = 11.sp,
+                            color = MahoorOnBackground.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = "با دوربین هوشمند عکس بردارید یا شبیه‌ساز را کلیک کنید",
+                            fontSize = 9.sp,
+                            color = MahoorOnBackground.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+            }
+
+            // Camera / Gallery Trigger Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Device Camera trigger
+                OutlinedButton(
+                    onClick = onLaunchCamera,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("btn_camera_capture"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MahoorPrimary),
+                    border = BorderStroke(1.dp, MahoorPrimary.copy(alpha = 0.6f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("دوربین دستگاه", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
 
-                HorizontalDivider(color = MahoorSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
-
-                // Sheypoor Switch Selection
-                Row(
+                // Photo Gallery trigger
+                OutlinedButton(
+                    onClick = onLaunchGallery,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { pubSheypoor = !pubSheypoor }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("btn_gallery_upload"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MahoorPrimary),
+                    border = BorderStroke(1.dp, MahoorSurfaceVariant)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(SheypoorBrandBlue)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(text = "انتشار مستقیم در شیپور", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
-                            Text(text = "شبیه‌ساز همگام‌ساز پنل شیپور مشاور", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
-                        }
-                    }
-                    Checkbox(
-                        checked = pubSheypoor,
-                        onCheckedChange = { pubSheypoor = it },
-                        colors = CheckboxDefaults.colors(checkedColor = SheypoorBrandBlue),
-                        modifier = Modifier.testTag("checkbox_sheypoor")
+                    Icon(
+                        imageVector = Icons.Filled.PhotoLibrary,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("گالری تصاویر", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+            }
 
-                HorizontalDivider(color = MahoorSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+            // Beautiful interactive simulation cards for streaming emulator
+            Text(
+                text = "بارگذاری سریع املاک شبیه‌سازی‌شده (با کیفیت بالا):",
+                fontSize = 10.sp,
+                color = MahoorOnBackground.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
 
-                // Mahoor WebApp internal publishing selection
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { pubMahoor = !pubMahoor }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                simulatedPresets.forEach { (name, url) ->
+                    Box(
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(70.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(
+                                width = if (imageUrl == url) 2.dp else 1.dp,
+                                color = if (imageUrl == url) MahoorPrimary else MahoorSurfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { onChangeImage(url) }
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = url,
+                            contentDescription = name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(MahoorBrandGold)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(text = "پورتال مرکزی املاک ماهور (مشتریان)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
-                            Text(text = "نمایش زنده در وب‌اپلیکیشن iOS و اندروید ماهور", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.4f)),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Text(
+                                text = name.substringBefore(" "),
+                                fontSize = 9.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
                         }
                     }
-                    Checkbox(
-                        checked = pubMahoor,
-                        onCheckedChange = { pubMahoor = it },
-                        colors = CheckboxDefaults.colors(checkedColor = MahoorPrimary),
-                        modifier = Modifier.testTag("checkbox_mahoor")
-                    )
                 }
             }
         }
+    }
+}
 
-        if (showValidationError) {
+// Sub-component: Supplemental Specifications / Additional Description
+@Composable
+fun DescriptionCard(
+    description: String,
+    onDescriptionChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Text(
-                text = "وارد کردن عنوان، موقعیت، قیمت و متراژ ملک الزامی است.",
-                color = Color(0xFFE74C3C),
-                fontSize = 12.sp,
+                text = "توضیحات تکمیلی آگهی",
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                color = MahoorPrimary
+            )
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = onDescriptionChange,
+                label = { Text("ویژگی‌ها، مشاعات، وضعیت سند و توصیف ملک...") },
+                textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .testTag("input_desc"),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MahoorPrimary,
+                    unfocusedBorderColor = MahoorOnBackground.copy(alpha = 0.2f),
+                    focusedLabelColor = MahoorPrimary,
+                    cursorColor = MahoorPrimary
+                )
             )
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
+// Sub-component: Multi-Gateway Simultaneous Publishing checklist
+@Composable
+fun PublishTargetGatewaysCard(
+    pubDivar: Boolean,
+    onDivarChange: (Boolean) -> Unit,
+    pubSheypoor: Boolean,
+    onSheypoorChange: (Boolean) -> Unit,
+    pubMahoor: Boolean,
+    onMahoorChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "درگاه‌های متصل انتشار همزمان",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MahoorPrimary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
 
-        // Publish Submit Button
-        Button(
-            onClick = {
-                val priceNum = priceStr.toLongOrNull()
-                val areaNum = areaStr.toIntOrNull()
-                val roomsNum = roomsStr.toIntOrNull() ?: 0
-
-                if (title.isBlank() || location.isBlank() || priceNum == null || areaNum == null) {
-                    showValidationError = true
-                } else {
-                    showValidationError = false
-                    onPublish(title, description, priceNum, type, location, areaNum, roomsNum, pubDivar, pubSheypoor, pubMahoor)
+            // Divar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDivarChange(!pubDivar) }
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(DivarBrandRed)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(text = "انتشار مستقیم در دیوار", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                        Text(text = "نیازمند توکن درگاه فعال در تنظیمات", fontSize = 10.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    }
                 }
-            },
+                Checkbox(
+                    checked = pubDivar,
+                    onCheckedChange = onDivarChange,
+                    colors = CheckboxDefaults.colors(checkedColor = DivarBrandRed),
+                    modifier = Modifier.testTag("checkbox_divar")
+                )
+            }
+
+            HorizontalDivider(color = MahoorSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
+            // Sheypoor
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSheypoorChange(!pubSheypoor) }
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(SheypoorBrandBlue)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(text = "انتشار مستقیم در شیپور", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                        Text(text = "شبیه‌ساز همگام‌ساز پنل شیپور مشاور", fontSize = 10.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    }
+                }
+                Checkbox(
+                    checked = pubSheypoor,
+                    onCheckedChange = onSheypoorChange,
+                    colors = CheckboxDefaults.colors(checkedColor = SheypoorBrandBlue),
+                    modifier = Modifier.testTag("checkbox_sheypoor")
+                )
+            }
+
+            HorizontalDivider(color = MahoorSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
+            // Mahoor central
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onMahoorChange(!pubMahoor) }
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(MahoorBrandGold)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(text = "پورتال مرکزی املاک ماهور (مشتریان)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MahoorOnBackground)
+                        Text(text = "نمایش زنده در وب‌اپلیکیشن iOS و اندروید ماهور", fontSize = 10.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    }
+                }
+                Checkbox(
+                    checked = pubMahoor,
+                    onCheckedChange = onMahoorChange,
+                    colors = CheckboxDefaults.colors(checkedColor = MahoorPrimary),
+                    modifier = Modifier.testTag("checkbox_mahoor")
+                )
+            }
+        }
+    }
+}
+
+// Sub-component: Main Publish Submit CTA button
+@Composable
+fun PublishCTAButton(
+    isSyncing: Boolean,
+    onTriggerPublish: () -> Unit,
+    showValidationError: Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (showValidationError) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ErrorOutline,
+                    contentDescription = null,
+                    tint = Color(0xFFE74C3C),
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "وارد کردن عنوان، موقعیت، قیمت و متراژ ملک الزامی است.",
+                    color = Color(0xFFE74C3C),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Button(
+            onClick = onTriggerPublish,
             enabled = !isSyncing,
             modifier = Modifier
                 .fillMaxWidth()
@@ -1099,11 +2163,11 @@ fun AddAdTab(
             if (isSyncing) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MahoorOnPrimary)
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("در حال همگام‌سازی با دیوار، شیپور و دیتابیس ابرآروان...", color = MahoorOnPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("در حال همگام‌سازی با دیوار، شیپور و ماهور...", color = MahoorOnPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             } else {
                 Icon(imageVector = Icons.Filled.Send, contentDescription = null, tint = MahoorOnPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("انتشار یکپارچه همزمان", color = MahoorOnPrimary, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                Text("انتشار یکپارچه همزمان", color = MahoorOnPrimary, fontWeight = FontWeight.Black, fontSize = 14.sp)
             }
         }
     }
@@ -2399,7 +3463,7 @@ fun PlatformConfigCard(
 // TAB 3: ANALYTICS & DOCKING FOR iOS PWAS
 // -----------------------------------------------------------------
 @Composable
-fun AnalyticsAndIosTab(ads: List<RealEstateAd>) {
+fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmodel.MahoorViewModel) {
     val scrollState = rememberScrollState()
 
     // Aggregates
@@ -2419,14 +3483,10 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>) {
     var pwaShowSplash by remember { mutableStateOf(false) }
     var activePwaTab by remember { mutableStateOf(0) } // 0: Standalone Listings, 1: Pricing Calculator, 2: Advisor Live Support
 
-    // Live chat states inside PWA support tab
-    val chatMessages = remember {
-        mutableStateListOf(
-            "سلام! به سامانه پشتیبانی اختصاصی وب‌اپلیکیشن iOS املاک ماهور خوش آمدید." to false,
-            "چگونه می‌توانم در راه‌اندازی شورتکات آیفون یا بهینه‌سازی کانال‌های آگاهی‌تان به شما کمک کنم؟" to false
-        )
-    }
-    var chatLoading by remember { mutableStateOf(false) }
+    // Live chat states inside PWA support tab connected to Gemini Advisor High-Intelligence
+    val chatMessages by viewModel.advisorChatMessages.collectAsStateWithLifecycle()
+    val chatLoading by viewModel.advisorChatLoading.collectAsStateWithLifecycle()
+    var customInputText by remember { mutableStateOf("") }
 
     // Mortgage calculator states inside simulated PWA
     var pwaPriceInput by remember { mutableStateOf("5") } // billions
@@ -3619,6 +4679,53 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>) {
 
                                                         Spacer(modifier = Modifier.height(10.dp))
 
+                                                        // Custom messages input bar for real reasoning chat with Gemini
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            OutlinedTextField(
+                                                                value = customInputText,
+                                                                onValueChange = { customInputText = it },
+                                                                textStyle = TextStyle(fontSize = 10.sp, color = Color.White),
+                                                                placeholder = { Text("سوال خود را از مشاور بپرسید...", fontSize = 9.sp, color = Color.White.copy(alpha = 0.5f)) },
+                                                                singleLine = true,
+                                                                modifier = Modifier.weight(1f),
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                colors = OutlinedTextFieldDefaults.colors(
+                                                                    focusedBorderColor = MahoorPrimary,
+                                                                    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+                                                                    focusedContainerColor = Color.Black.copy(alpha = 0.15f),
+                                                                    unfocusedContainerColor = Color.Black.copy(alpha = 0.15f)
+                                                                )
+                                                            )
+
+                                                            IconButton(
+                                                                onClick = {
+                                                                    if (customInputText.isNotBlank() && !chatLoading) {
+                                                                        viewModel.sendMessageToAdvisor(customInputText)
+                                                                        customInputText = ""
+                                                                        scope.launch {
+                                                                            kotlinx.coroutines.delay(150)
+                                                                            chatScrollState.animateScrollTo(chatScrollState.maxValue)
+                                                                        }
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(34.dp).clip(CircleShape).background(MahoorPrimary),
+                                                                enabled = customInputText.isNotBlank() && !chatLoading
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Filled.Send,
+                                                                    contentDescription = "ارسال",
+                                                                    tint = Color.Black,
+                                                                    modifier = Modifier.size(13.dp)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        Spacer(modifier = Modifier.height(6.dp))
+
                                                         // Interactive canned questions to simulate chat
                                                         Text("یکی از سوالات کلیدی زیر را جهت آزمایش پاسخ خودکار انتخاب فرمایید:", fontSize = 8.sp, color = Color.White.copy(alpha = 0.6f))
                                                         
@@ -3631,12 +4738,9 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>) {
                                                             Button(
                                                                 onClick = {
                                                                     if (!chatLoading) {
-                                                                        chatMessages.add("تعرفه انتشار و همگام‌سازی چقدر است؟" to true)
-                                                                        chatLoading = true
+                                                                        viewModel.sendMessageToAdvisor("تعرفه انتشار و همگام‌سازی چقدر است؟")
                                                                         scope.launch {
-                                                                            kotlinx.coroutines.delay(1000)
-                                                                            chatMessages.add("انتشار به صورت کاملا رایگان است و اشتراک با دیوار و شیپور به تعداد آگهی‌های شما بستگی دارد." to false)
-                                                                            chatLoading = false
+                                                                            kotlinx.coroutines.delay(150)
                                                                             chatScrollState.animateScrollTo(chatScrollState.maxValue)
                                                                         }
                                                                     }
@@ -3651,12 +4755,9 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>) {
                                                             Button(
                                                                 onClick = {
                                                                     if (!chatLoading) {
-                                                                        chatMessages.add("آیا بدون اینترنت هم وب‌اپ کار می‌کند؟" to true)
-                                                                        chatLoading = true
+                                                                        viewModel.sendMessageToAdvisor("آیا بدون اینترنت هم وب‌اپ کار می‌کند؟")
                                                                         scope.launch {
-                                                                            kotlinx.coroutines.delay(1000)
-                                                                            chatMessages.add("بله! وب‌اپلیکیشن مجهز به Service Workers است که کپی آفلاین کلینت را لود می‌کند." to false)
-                                                                            chatLoading = false
+                                                                            kotlinx.coroutines.delay(150)
                                                                             chatScrollState.animateScrollTo(chatScrollState.maxValue)
                                                                         }
                                                                     }

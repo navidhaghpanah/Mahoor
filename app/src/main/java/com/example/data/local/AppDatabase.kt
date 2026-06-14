@@ -4,17 +4,19 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.data.model.AgentProfile
 import com.example.data.model.ChannelCredential
 import com.example.data.model.RealEstateAd
 
 @Database(
-    entities = [RealEstateAd::class, ChannelCredential::class],
-    version = 1,
+    entities = [RealEstateAd::class, ChannelCredential::class, AgentProfile::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun realEstateDao(): RealEstateDao
     abstract fun credentialDao(): CredentialDao
+    abstract fun agentProfileDao(): AgentProfileDao
 
     companion object {
         @Volatile

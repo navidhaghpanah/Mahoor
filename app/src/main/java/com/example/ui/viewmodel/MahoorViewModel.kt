@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.model.AgentProfile
 import com.example.data.model.ChannelCredential
 import com.example.data.model.RealEstateAd
 import com.example.data.repository.RealEstateRepository
@@ -24,13 +25,52 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
     private val repository: RealEstateRepository
     val uiState: StateFlow<List<RealEstateAd>>
     val credentials: StateFlow<List<ChannelCredential>>
+    val agentProfile: StateFlow<AgentProfile?>
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
+    private val _advisorChatMessages = MutableStateFlow<List<Pair<String, Boolean>>>(
+        listOf(
+            "سلام! به سامانه پشتیبانی اختصاصی و مشاور هوشمند ارشد املاک ماهور خوش آمدید." to false,
+            "هر سوالی در مورد قیمت‌گذاری، همگام‌سازی با دیوار و شیپور، محاسبات قانونی کمیسیون یا قوانین معاملات ملکی دارید بپرسید؛ با قدرت پردازش فوق پیشرفته (Thinking Cloud) در خدمت شما هستم." to false
+        )
+    )
+    val advisorChatMessages = _advisorChatMessages.asStateFlow()
+
+    private val _advisorChatLoading = MutableStateFlow(false)
+    val advisorChatLoading = _advisorChatLoading.asStateFlow()
+
+    fun sendMessageToAdvisor(message: String) {
+        viewModelScope.launch {
+            if (message.isBlank()) return@launch
+            
+            // Add user message to list
+            val current = _advisorChatMessages.value.toMutableList()
+            current.add(message to true)
+            _advisorChatMessages.value = current
+            _advisorChatLoading.value = true
+
+            // Launch AI generation
+            val response = com.example.data.repository.GeminiRepository.getAdvisorResponse(
+                userMessage = message,
+                conversationHistory = current.drop(2) // Drop introductory messages to keep context concise
+            )
+
+            val updated = _advisorChatMessages.value.toMutableList()
+            updated.add(response to false)
+            _advisorChatMessages.value = updated
+            _advisorChatLoading.value = false
+        }
+    }
+
     init {
         val database = AppDatabase.getDatabase(application)
-        repository = RealEstateRepository(database.realEstateDao(), database.credentialDao())
+        repository = RealEstateRepository(
+            database.realEstateDao(),
+            database.credentialDao(),
+            database.agentProfileDao()
+        )
 
         uiState = repository.allAds.stateIn(
             scope = viewModelScope,
@@ -42,6 +82,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+        agentProfile = repository.agentProfile.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
         )
 
         // Initialize defaults in database
@@ -151,7 +197,8 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
         rooms: Int,
         publishDivar: Boolean,
         publishSheypoor: Boolean,
-        publishMahoor: Boolean
+        publishMahoor: Boolean,
+        imageUrl: String? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             _isSyncing.value = true
@@ -163,6 +210,7 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 location = location,
                 areaSize = areaSize,
                 rooms = rooms,
+                imageUrl = imageUrl,
                 publishToDivar = publishDivar,
                 publishToSheypoor = publishSheypoor,
                 publishToMahoor = publishMahoor,
@@ -203,6 +251,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                     syncStatus = status
                 )
             )
+        }
+    }
+
+    fun updateAgentProfile(profile: AgentProfile) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveProfile(profile)
         }
     }
 
