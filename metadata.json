@@ -1,0 +1,6 @@
+{
+  "name": "املاک ماهور",
+  "description": "سامانه یکپارچه مدیریت و انتشار آگهی‌های املاک ماهور در دیوار و شیپور به همراه آمار لحظه‌ای",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

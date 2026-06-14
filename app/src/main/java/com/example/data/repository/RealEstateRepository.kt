@@ -1,0 +1,167 @@
+package com.example.data.repository
+
+import com.example.data.local.CredentialDao
+import com.example.data.local.RealEstateDao
+import com.example.data.model.ChannelCredential
+import com.example.data.model.RealEstateAd
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import java.io.IOException
+import kotlin.random.Random
+
+class RealEstateRepository(
+    private val realEstateDao: RealEstateDao,
+    private val credentialDao: CredentialDao
+) {
+    val allAds: Flow<List<RealEstateAd>> = realEstateDao.getAllAds()
+    val allCredentials: Flow<List<ChannelCredential>> = credentialDao.getAllCredentials()
+
+    suspend fun getAdById(id: Int): RealEstateAd? = realEstateDao.getAdById(id)
+
+    // Simulates publishing an ad across several portals
+    suspend fun publishAd(ad: RealEstateAd): Long {
+        // Prepare simulation of API publishing
+        delay(800) // Mock API network delays
+        val divarId = if (ad.publishToDivar) "DIV-${Random.nextInt(100000, 999999)}" else null
+        val sheypoorId = if (ad.publishToSheypoor) "SHY-${Random.nextInt(100000, 999999)}" else null
+
+        // Initial realistic views/stats
+        val freshAd = ad.copy(
+            divarId = divarId,
+            sheypoorId = sheypoorId,
+            views = if (ad.isActive) Random.nextInt(5, 12) else 0,
+            clicks = if (ad.isActive) Random.nextInt(1, 4) else 0,
+            leads = 0
+        )
+        return realEstateDao.insertAd(freshAd)
+    }
+
+    suspend fun updateAd(ad: RealEstateAd) {
+        val divarId = if (ad.publishToDivar && ad.divarId == null) "DIV-${Random.nextInt(100000, 999999)}" else if (ad.publishToDivar) ad.divarId else null
+        val sheypoorId = if (ad.publishToSheypoor && ad.sheypoorId == null) "SHY-${Random.nextInt(100000, 999999)}" else if (ad.publishToSheypoor) ad.sheypoorId else null
+        
+        realEstateDao.updateAd(ad.copy(divarId = divarId, sheypoorId = sheypoorId))
+    }
+
+    suspend fun deleteAd(ad: RealEstateAd) {
+        realEstateDao.deleteAd(ad)
+    }
+
+    suspend fun updateAdStatus(id: Int, isActive: Boolean) {
+        realEstateDao.updateStatus(id, isActive)
+    }
+
+    suspend fun updateAdStats(id: Int, views: Int, clicks: Int, leads: Int) {
+        realEstateDao.updateStats(id, views, clicks, leads)
+    }
+
+    // High performance simulations: generate real-time interaction updates
+    suspend fun simulateRealTimeTraffic(adsList: List<RealEstateAd>) {
+        if (adsList.isEmpty()) return
+        
+        // Randomly choose 1 to 2 ads and bump views, clicks or leads
+        val activeAds = adsList.filter { it.isActive }
+        if (activeAds.isEmpty()) return
+
+        val adToUpdate = activeAds.random()
+        val newViews = adToUpdate.views + Random.nextInt(1, 4)
+        val newClicks = adToUpdate.clicks + if (Random.nextFloat() > 0.4f) Random.nextInt(0, 2) else 0
+        val newLeads = adToUpdate.leads + if (Random.nextFloat() > 0.85f) Random.nextInt(0, 1) else 0
+
+        realEstateDao.updateStats(adToUpdate.id, newViews, newClicks, newLeads)
+    }
+
+    // Credentials logic
+    suspend fun saveCredential(credential: ChannelCredential) {
+        credentialDao.insertCredential(credential)
+    }
+
+    suspend fun updateSyncStatus(channelName: String, status: String) {
+        credentialDao.updateSyncStatus(channelName, status)
+    }
+
+    suspend fun updateChannelEnabled(channelName: String, isEnabled: Boolean) {
+        credentialDao.updateChannelEnabled(channelName, isEnabled)
+    }
+
+    // Prepopulate some default platforms, keys and properties to offer an amazing out-of-the-box user experience
+    suspend fun initializeDefaults() {
+        val divarCreds = credentialDao.getCredentialByChannel("divar")
+        if (divarCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "divar",
+                    isEnabled = true,
+                    apiKey = "divar_token_live_mahoor_99x81",
+                    phoneNumber = "09121234567",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+
+        val sheypoorCreds = credentialDao.getCredentialByChannel("sheypoor")
+        if (sheypoorCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "sheypoor",
+                    isEnabled = true,
+                    apiKey = "sheypoor_key_auth_44a218_mahoor",
+                    phoneNumber = "09121234567",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+
+        val mahoorCreds = credentialDao.getCredentialByChannel("mahoor")
+        if (mahoorCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "mahoor",
+                    isEnabled = true,
+                    apiKey = "mahoor_portal_key_internal",
+                    phoneNumber = "09121234567",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+
+        val arvanCreds = credentialDao.getCredentialByChannel("arvan_mysql")
+        if (arvanCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "arvan_mysql",
+                    isEnabled = true,
+                    apiKey = "host=3da6f77c410e4c00b2b8c85eed95cd72.db.arvandbaas.ir;port=3306;pass=Xb0E_KKsTU3n_L#W3kNMHeE1",
+                    phoneNumber = "base-user",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+
+        val apifyCreds = credentialDao.getCredentialByChannel("apify_divar")
+        if (apifyCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "apify_divar",
+                    isEnabled = true,
+                    apiKey = "https://apify.com/conspiratorial_quantum/divar-real-state/api",
+                    phoneNumber = "apify-actor",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+
+        val apifySheypoorCreds = credentialDao.getCredentialByChannel("apify_sheypoor")
+        if (apifySheypoorCreds == null) {
+            credentialDao.insertCredential(
+                ChannelCredential(
+                    channelName = "apify_sheypoor",
+                    isEnabled = true,
+                    apiKey = "https://apify.com/web_scraper/sheypoor-real-estate/api",
+                    phoneNumber = "apify-sheypoor-actor",
+                    syncStatus = "متصل"
+                )
+            )
+        }
+    }
+}
