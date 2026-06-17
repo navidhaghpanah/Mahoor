@@ -88,6 +88,9 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
     val agentProfile by viewModel.agentProfile.collectAsStateWithLifecycle()
+    val firestoreInitialized by viewModel.firestoreInitialized.collectAsStateWithLifecycle()
+    val isSyncingFirestore by viewModel.isFirestoreSyncRunning.collectAsStateWithLifecycle()
+    val firestoreSyncMsg by viewModel.firestoreSyncStatusMsg.collectAsStateWithLifecycle()
 
     var activeTab by remember { mutableStateOf(0) } // 0: Ads, 1: Add Ad, 2: Platforms, 3: Analytics & iOS Webapp, 4: Profile & Subscription
     var editingAd by remember { mutableStateOf<RealEstateAd?>(null) }
@@ -288,7 +291,12 @@ fun MahoorMainScreen(viewModel: MahoorViewModel) {
                         credentials = credentials,
                         onDeleteAd = { viewModel.deleteAd(it) },
                         onToggleStatus = { viewModel.toggleAdStatus(it) },
-                        onEditAd = { editingAd = it }
+                        onEditAd = { editingAd = it },
+                        onUpdateAd = { viewModel.updateAd(it) },
+                        firestoreInitialized = firestoreInitialized,
+                        isSyncingFirestore = isSyncingFirestore,
+                        firestoreSyncMsg = firestoreSyncMsg,
+                        onSyncFirestore = { viewModel.syncAllWithFirestore() }
                     )
                     1 -> AddAdTab(
                         isSyncing = isSyncing,
@@ -361,7 +369,12 @@ fun DashboardTab(
     credentials: List<ChannelCredential>,
     onDeleteAd: (RealEstateAd) -> Unit,
     onToggleStatus: (RealEstateAd) -> Unit,
-    onEditAd: (RealEstateAd) -> Unit
+    onEditAd: (RealEstateAd) -> Unit,
+    onUpdateAd: (RealEstateAd) -> Unit,
+    firestoreInitialized: Boolean = true,
+    isSyncingFirestore: Boolean = false,
+    firestoreSyncMsg: String = "",
+    onSyncFirestore: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf<String?>("همه") }
@@ -369,6 +382,7 @@ fun DashboardTab(
     var minPriceStr by remember { mutableStateOf("") }
     var maxPriceStr by remember { mutableStateOf("") }
     var filtersExpanded by remember { mutableStateOf(false) }
+    var currentViewMode by remember { mutableStateOf(0) } // 0: Listings, 1: Publish Management Panel
 
     val activeFiltersCount = remember(searchQuery, selectedStatus, selectedPricePreset, minPriceStr, maxPriceStr) {
         var count = 0
@@ -457,6 +471,150 @@ fun DashboardTab(
         ) {
             item {
                 DashboardHeader(adsCount = ads.size)
+            }
+
+            // FIRESTORE CLOUD SYNC WIDGET
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("firestore_sync_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                    border = BorderStroke(1.dp, MahoorSurfaceVariant.copy(alpha = 0.8f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (firestoreInitialized) Color(0xFF2ECC71).copy(alpha = 0.25f)
+                                            else Color(0xFFE74C3C).copy(alpha = 0.25f)
+                                        )
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (firestoreInitialized) Color(0xFF2ECC71) 
+                                            else Color(0xFFE74C3C)
+                                        )
+                                )
+                            }
+
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CloudQueue,
+                                        contentDescription = null,
+                                        tint = MahoorPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(
+                                        text = "سامانه ابری Firebase Firestore",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MahoorOnBackground
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = firestoreSyncMsg.ifEmpty { 
+                                        if (firestoreInitialized) "آماده همگام‌سازی و مدیریت ابری آگهی‌ها" 
+                                        else "خطا در اتصال به فایربیس"
+                                    },
+                                    fontSize = 10.sp,
+                                    color = MahoorOnBackground.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = onSyncFirestore,
+                            enabled = !isSyncingFirestore,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MahoorPrimary,
+                                contentColor = MahoorOnPrimary,
+                                disabledContainerColor = MahoorSurfaceVariant
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (isSyncingFirestore) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MahoorOnPrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Sync,
+                                    contentDescription = "Sync",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("همگام‌سازی ملکی", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // View Mode Selector Segment (General Ads Listings vs. Publish Management Panel)
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MahoorSurface)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Button(
+                        onClick = { currentViewMode = 0 },
+                        modifier = Modifier.weight(1f).testTag("mode_ads_list"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (currentViewMode == 0) MahoorPrimary else Color.Transparent,
+                            contentColor = if (currentViewMode == 0) MahoorOnPrimary else MahoorOnBackground
+                        ),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.List, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("نمایش عمومی آگهی‌ها", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = { currentViewMode = 1 },
+                        modifier = Modifier.weight(1f).testTag("mode_publish_mgmt"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (currentViewMode == 1) MahoorPrimary else Color.Transparent,
+                            contentColor = if (currentViewMode == 1) MahoorOnPrimary else MahoorOnBackground
+                        ),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("پنل مدیریت وضعیت انتشار", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
             // --- SEARCH & FILTER SECTION ---
@@ -809,13 +967,369 @@ fun DashboardTab(
                 }
             } else {
                 items(filteredAds, key = { it.id }) { ad ->
-                    RealEstateAdCard(
-                        ad = ad,
-                        credentials = credentials,
-                        onDeleteAd = { onDeleteAd(ad) },
-                        onToggleStatus = { onToggleStatus(ad) },
-                        onEditAd = { onEditAd(ad) }
+                    if (currentViewMode == 0) {
+                        RealEstateAdCard(
+                            ad = ad,
+                            credentials = credentials,
+                            onDeleteAd = { onDeleteAd(ad) },
+                            onToggleStatus = { onToggleStatus(ad) },
+                            onEditAd = { onEditAd(ad) }
+                        )
+                    } else {
+                        PublicationManagementCard(
+                            ad = ad,
+                            onUpdateAd = onUpdateAd
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PublicationManagementCard(
+    ad: RealEstateAd,
+    onUpdateAd: (RealEstateAd) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("pub_mgmt_card_${ad.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant.copy(alpha = 0.8f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // General info row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = ad.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorOnBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${ad.type} • ${ad.location}".toPersianDigits(),
+                        fontSize = 11.sp,
+                        color = MahoorOnBackground.copy(alpha = 0.6f)
+                    )
+                }
+
+                // Overall price formatted beautifully
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MahoorPrimary.copy(alpha = 0.12f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = ad.price.formatToShortPersianPrice(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Divider(color = MahoorSurfaceVariant.copy(alpha = 0.4f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // PLATFORMS STATUSES LIST
+            Text(
+                text = "مدیریت و کنترل به تفکیک دیوار و شیپور:",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MahoorPrimary,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 1. DIVAR API MANAGEMENT ROW
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MahoorDarkBg.copy(alpha = 0.4f))
+                        .border(0.5.dp, DivarBrandRed.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(DivarBrandRed)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "درگاه انتشار دیوار",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        // Divar publication status badge
+                        val isPublished = ad.publishToDivar && ad.divarId != null
+                        val isPending = ad.publishToDivar && ad.divarId == null
+                        val isDisabled = !ad.publishToDivar
+
+                        val badgeText = when {
+                            isPublished -> "منتشر شده (کد: ${ad.divarId})"
+                            isPending -> "در انتظار انتشار"
+                            else -> "غیرفعال"
+                        }
+
+                        val badgeColor = when {
+                            isPublished -> Color(0xFF2ECC71) // Nice success green
+                            isPending -> Color(0xFFE67E22) // Luxury Orange
+                            else -> MahoorOnBackground.copy(alpha = 0.4f)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(badgeColor.copy(alpha = 0.15f))
+                                .border(0.5.dp, badgeColor, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = badgeText.toPersianDigits(),
+                                fontSize = 9.sp,
+                                color = badgeColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Buttons row to change Divar status direct
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val isPublished = ad.publishToDivar && ad.divarId != null
+                        val isPending = ad.publishToDivar && ad.divarId == null
+                        val isDisabled = !ad.publishToDivar
+
+                        // 1. Set published button
+                        Button(
+                            onClick = {
+                                val randomId = ad.divarId ?: "DIV-${kotlin.random.Random.nextInt(100000, 999999)}"
+                                onUpdateAd(ad.copy(
+                                    publishToDivar = true,
+                                    divarId = randomId,
+                                    publishStatus = "منتشر شده"
+                                ))
+                            },
+                            modifier = Modifier.weight(1.2f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPublished) Color(0xFF2ECC71) else MahoorSurfaceVariant,
+                                contentColor = if (isPublished) Color.White else MahoorOnBackground.copy(alpha = 0.8f)
+                            ),
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("منتشر شده", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 2. Set pending button
+                        Button(
+                            onClick = {
+                                onUpdateAd(ad.copy(
+                                    publishToDivar = true,
+                                    divarId = null,
+                                    publishStatus = "در حال بررسی"
+                                ))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPending) Color(0xFFE67E22) else MahoorSurfaceVariant,
+                                contentColor = if (isPending) Color.White else MahoorOnBackground.copy(alpha = 0.8f)
+                            ),
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("در انتظار", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 3. Disable button
+                        Button(
+                            onClick = {
+                                onUpdateAd(ad.copy(
+                                    publishToDivar = false,
+                                    divarId = null
+                                ))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDisabled) Color.Red.copy(alpha = 0.15f) else MahoorSurfaceVariant,
+                                contentColor = if (isDisabled) Color.Red else MahoorOnBackground.copy(alpha = 0.6f)
+                            ),
+                            border = if (isDisabled) BorderStroke(0.5.dp, Color.Red) else null,
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("غیرفعال", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // 2. SHEYPOOR API MANAGEMENT ROW
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MahoorDarkBg.copy(alpha = 0.4f))
+                        .border(0.5.dp, SheypoorBrandBlue.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(SheypoorBrandBlue)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "درگاه انتشار شیپور",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        // Sheypoor publication status badge
+                        val isPublished = ad.publishToSheypoor && ad.sheypoorId != null
+                        val isPending = ad.publishToSheypoor && ad.sheypoorId == null
+                        val isDisabled = !ad.publishToSheypoor
+
+                        val badgeText = when {
+                            isPublished -> "منتشر شده (کد: ${ad.sheypoorId})"
+                            isPending -> "در انتظار انتشار"
+                            else -> "غیرفعال"
+                        }
+
+                        val badgeColor = when {
+                            isPublished -> Color(0xFF3498DB) // Clear sky brand blue
+                            isPending -> Color(0xFFE67E22)
+                            else -> MahoorOnBackground.copy(alpha = 0.4f)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(badgeColor.copy(alpha = 0.15f))
+                                .border(0.5.dp, badgeColor, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = badgeText.toPersianDigits(),
+                                fontSize = 9.sp,
+                                color = badgeColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Buttons row to change Sheypoor status direct
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val isPublished = ad.publishToSheypoor && ad.sheypoorId != null
+                        val isPending = ad.publishToSheypoor && ad.sheypoorId == null
+                        val isDisabled = !ad.publishToSheypoor
+
+                        // 1. Set published button
+                        Button(
+                            onClick = {
+                                val randomId = ad.sheypoorId ?: "SHY-${kotlin.random.Random.nextInt(100000, 999999)}"
+                                onUpdateAd(ad.copy(
+                                    publishToSheypoor = true,
+                                    sheypoorId = randomId,
+                                    publishStatus = "منتشر شده"
+                                ))
+                            },
+                            modifier = Modifier.weight(1.2f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPublished) Color(0xFF3498DB) else MahoorSurfaceVariant,
+                                contentColor = if (isPublished) Color.White else MahoorOnBackground.copy(alpha = 0.8f)
+                            ),
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("منتشر شده", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 2. Set pending button
+                        Button(
+                            onClick = {
+                                onUpdateAd(ad.copy(
+                                    publishToSheypoor = true,
+                                    sheypoorId = null,
+                                    publishStatus = "در حال بررسی"
+                                ))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPending) Color(0xFFE67E22) else MahoorSurfaceVariant,
+                                contentColor = if (isPending) Color.White else MahoorOnBackground.copy(alpha = 0.8f)
+                            ),
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("در انتظار", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 3. Disable button
+                        Button(
+                            onClick = {
+                                onUpdateAd(ad.copy(
+                                    publishToSheypoor = false,
+                                    sheypoorId = null
+                                ))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDisabled) Color.Red.copy(alpha = 0.15f) else MahoorSurfaceVariant,
+                                contentColor = if (isDisabled) Color.Red else MahoorOnBackground.copy(alpha = 0.6f)
+                            ),
+                            border = if (isDisabled) BorderStroke(0.5.dp, Color.Red) else null,
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            Text("غیرفعال", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

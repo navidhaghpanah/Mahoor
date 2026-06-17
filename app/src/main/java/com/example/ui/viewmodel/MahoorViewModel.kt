@@ -27,6 +27,17 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
     val credentials: StateFlow<List<ChannelCredential>>
     val agentProfile: StateFlow<AgentProfile?>
 
+    private val firestoreRepository = com.example.data.repository.FirestoreRepository.getInstance(application)
+    
+    private val _firestoreInitialized = MutableStateFlow(firestoreRepository.isInitialized)
+    val firestoreInitialized = _firestoreInitialized.asStateFlow()
+
+    private val _isFirestoreSyncRunning = MutableStateFlow(false)
+    val isFirestoreSyncRunning = _isFirestoreSyncRunning.asStateFlow()
+
+    private val _firestoreSyncStatusMsg = MutableStateFlow("سامانه ابری فایربیس فعال است")
+    val firestoreSyncStatusMsg = _firestoreSyncStatusMsg.asStateFlow()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing = _isSyncing.asStateFlow()
 
@@ -219,7 +230,11 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 publishToMahoor = publishMahoor,
                 isActive = true
             )
-            repository.publishAd(ad)
+            val insertedId = repository.publishAd(ad)
+            val updatedAd = repository.getAdById(insertedId.toInt())
+            if (updatedAd != null) {
+                firestoreRepository.saveAd(updatedAd)
+            }
             _isSyncing.value = false
         }
     }
@@ -227,18 +242,50 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
     fun updateAd(ad: RealEstateAd) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateAd(ad)
+            val updatedAd = repository.getAdById(ad.id)
+            if (updatedAd != null) {
+                firestoreRepository.saveAd(updatedAd)
+            }
         }
     }
 
     fun toggleAdStatus(ad: RealEstateAd) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateAdStatus(ad.id, !ad.isActive)
+            val updatedAd = repository.getAdById(ad.id)
+            if (updatedAd != null) {
+                firestoreRepository.saveAd(updatedAd)
+            }
         }
     }
 
     fun deleteAd(ad: RealEstateAd) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteAd(ad)
+            firestoreRepository.deleteAd(ad.id)
+        }
+    }
+
+    fun syncAllWithFirestore() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isFirestoreSyncRunning.value = true
+            _firestoreSyncStatusMsg.value = "درحال همگام‌سازی با پایگاه ابری فایربیس..."
+            val ads = uiState.value
+            var successCount = 0
+            ads.forEach { ad ->
+                val success = firestoreRepository.saveAd(ad)
+                if (success) {
+                    successCount++
+                }
+                delay(200) // Beautiful progress simulation
+            }
+            _isFirestoreSyncRunning.value = false
+            _firestoreInitialized.value = firestoreRepository.isInitialized
+            if (firestoreRepository.isInitialized) {
+                _firestoreSyncStatusMsg.value = "موفق: $successCount آگهی در فایربیس ذخیره شد"
+            } else {
+                _firestoreSyncStatusMsg.value = "خطا در اتصال به فایربیس"
+            }
         }
     }
 
