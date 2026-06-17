@@ -363,6 +363,58 @@ fun DashboardTab(
     onToggleStatus: (RealEstateAd) -> Unit,
     onEditAd: (RealEstateAd) -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedStatus by remember { mutableStateOf<String?>("همه") }
+    var selectedPricePreset by remember { mutableStateOf("همه قیمت‌ها") }
+    var minPriceStr by remember { mutableStateOf("") }
+    var maxPriceStr by remember { mutableStateOf("") }
+    var filtersExpanded by remember { mutableStateOf(false) }
+
+    val activeFiltersCount = remember(searchQuery, selectedStatus, selectedPricePreset, minPriceStr, maxPriceStr) {
+        var count = 0
+        if (searchQuery.isNotEmpty()) count++
+        if (selectedStatus != "همه" && selectedStatus != null) count++
+        if (selectedPricePreset != "همه قیمت‌ها") count++
+        if (minPriceStr.isNotEmpty() || maxPriceStr.isNotEmpty()) count++
+        count
+    }
+
+    val filteredAds = remember(ads, searchQuery, selectedStatus, selectedPricePreset, minPriceStr, maxPriceStr) {
+        ads.filter { ad ->
+            // 1. Search Query (Location, title, or description)
+            val matchesSearch = searchQuery.isBlank() ||
+                    ad.location.contains(searchQuery, ignoreCase = true) ||
+                    ad.title.contains(searchQuery, ignoreCase = true) ||
+                    ad.description.contains(searchQuery, ignoreCase = true)
+
+            // 2. Status Badge
+            val matchesStatus = selectedStatus == "همه" || selectedStatus == null || ad.publishStatus == selectedStatus
+
+            // 3. Price Preset filter
+            val matchesPreset = when (selectedPricePreset) {
+                "تا ۵ میلیارد" -> ad.price <= 5_000_000_000L
+                "۵ تا ۱۵ میلیارد" -> ad.price in 5_000_000_000L..15_000_000_000L
+                "بیش از ۱۵ میلیارد" -> ad.price >= 15_000_000_000L
+                else -> true
+            }
+
+            // 4. Custom Price range
+            val minPrice = minPriceStr.toLongOrNull() ?: 0L
+            val maxPrice = maxPriceStr.toLongOrNull() ?: Long.MAX_VALUE
+            val matchesCustomPrice = ad.price in minPrice..maxPrice
+
+            matchesSearch && matchesStatus && matchesPreset && matchesCustomPrice
+        }
+    }
+
+    val clearFilters = {
+        searchQuery = ""
+        selectedStatus = "همه"
+        selectedPricePreset = "همه قیمت‌ها"
+        minPriceStr = ""
+        maxPriceStr = ""
+    }
+
     if (ads.isEmpty()) {
         Column(
             modifier = Modifier
@@ -406,15 +458,399 @@ fun DashboardTab(
             item {
                 DashboardHeader(adsCount = ads.size)
             }
-            items(ads, key = { it.id }) { ad ->
-                RealEstateAdCard(
-                    ad = ad,
-                    credentials = credentials,
-                    onDeleteAd = { onDeleteAd(ad) },
-                    onToggleStatus = { onToggleStatus(ad) },
-                    onEditAd = { onEditAd(ad) }
-                )
+
+            // --- SEARCH & FILTER SECTION ---
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().testTag("search_filter_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                    border = BorderStroke(1.dp, MahoorSurfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Search bar row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.weight(1f).testTag("search_input"),
+                                shape = RoundedCornerShape(12.dp),
+                                placeholder = { Text("جستجو در منطقه، خیابان، عنوان آگهی...", fontSize = 13.sp, color = MahoorOnBackground.copy(alpha = 0.5f)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Search,
+                                        contentDescription = "جستجو",
+                                        tint = MahoorPrimary
+                                    )
+                                },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchQuery = "" }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Clear,
+                                                contentDescription = "حذف متن",
+                                                tint = MahoorOnBackground.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 14.sp, color = MahoorOnBackground),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MahoorPrimary,
+                                    unfocusedBorderColor = MahoorSurfaceVariant,
+                                    focusedContainerColor = MahoorDarkBg.copy(alpha = 0.5f),
+                                    unfocusedContainerColor = MahoorDarkBg.copy(alpha = 0.3f),
+                                    focusedLabelColor = MahoorPrimary,
+                                    unfocusedLabelColor = MahoorOnBackground.copy(alpha = 0.6f)
+                                )
+                            )
+
+                            // Filter Toggle Button
+                            Box(contentAlignment = Alignment.TopEnd) {
+                                Button(
+                                    onClick = { filtersExpanded = !filtersExpanded },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (filtersExpanded || activeFiltersCount > 0) MahoorPrimary else MahoorSurfaceVariant
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                                    modifier = Modifier.height(56.dp).testTag("filter_toggle_btn")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.FilterList,
+                                            contentDescription = "فیلتر پیشرفته",
+                                            tint = if (filtersExpanded || activeFiltersCount > 0) MahoorOnPrimary else MahoorOnBackground
+                                        )
+                                        Text(
+                                            text = "فیلترها",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (filtersExpanded || activeFiltersCount > 0) MahoorOnPrimary else MahoorOnBackground
+                                        )
+                                    }
+                                }
+
+                                if (activeFiltersCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = (-4).dp, y = (-4).dp)
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Red)
+                                            .border(1.5.dp, MahoorSurface, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = activeFiltersCount.toString().toPersianDigits(),
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Expanded Filter panel
+                        AnimatedVisibility(
+                            visible = filtersExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                // 1. Status Filter
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "وضعیت انتشار و همگام‌سازی:",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MahoorPrimary
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        val statuses = listOf("همه", "منتشر شده", "در حال بررسی", "خطا در ارسال")
+                                        statuses.forEach { statusName ->
+                                            val isSelected = selectedStatus == statusName
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSelected) MahoorPrimary.copy(alpha = 0.2f) else MahoorSurfaceVariant.copy(alpha = 0.5f))
+                                                    .border(1.dp, if (isSelected) MahoorPrimary else Color.Transparent, RoundedCornerShape(8.dp))
+                                                    .clickable { selectedStatus = statusName }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = statusName,
+                                                    fontSize = 11.sp,
+                                                    color = if (isSelected) MahoorPrimary else MahoorOnBackground.copy(alpha = 0.8f),
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 2. Price Preset Filter
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = "بازه قیمت (تومان):",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MahoorPrimary
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        val presets = listOf("همه قیمت‌ها", "تا ۵ میلیارد", "۵ تا ۱۵ میلیارد", "بیش از ۱۵ میلیارد")
+                                        presets.forEach { preset ->
+                                            val isSelected = selectedPricePreset == preset
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSelected) MahoorPrimary.copy(alpha = 0.2f) else MahoorSurfaceVariant.copy(alpha = 0.5f))
+                                                    .border(1.dp, if (isSelected) MahoorPrimary else Color.Transparent, RoundedCornerShape(8.dp))
+                                                    .clickable { selectedPricePreset = preset }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = preset,
+                                                    fontSize = 11.sp,
+                                                    color = if (isSelected) MahoorPrimary else MahoorOnBackground.copy(alpha = 0.8f),
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 3. Custom Price Range
+                                if (selectedPricePreset == "همه قیمت‌ها") {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = "قیمت دلخواه (تومان):",
+                                            fontSize = 11.sp,
+                                            color = MahoorOnBackground.copy(alpha = 0.6f)
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            OutlinedTextField(
+                                                value = minPriceStr,
+                                                onValueChange = { input ->
+                                                    if (input.all { it.isDigit() }) minPriceStr = input
+                                                },
+                                                modifier = Modifier.weight(1f).testTag("price_min"),
+                                                label = { Text("حداقل قیمت", fontSize = 11.sp) },
+                                                singleLine = true,
+                                                textStyle = TextStyle(fontSize = 12.sp, color = MahoorOnBackground),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = MahoorPrimary,
+                                                    unfocusedBorderColor = MahoorSurfaceVariant
+                                                )
+                                            )
+
+                                            Text("تا", fontSize = 12.sp, color = MahoorOnBackground.copy(alpha = 0.6f))
+
+                                            OutlinedTextField(
+                                                value = maxPriceStr,
+                                                onValueChange = { input ->
+                                                    if (input.all { it.isDigit() }) maxPriceStr = input
+                                                },
+                                                modifier = Modifier.weight(1f).testTag("price_max"),
+                                                label = { Text("حداکثر قیمت", fontSize = 11.sp) },
+                                                singleLine = true,
+                                                textStyle = TextStyle(fontSize = 12.sp, color = MahoorOnBackground),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = MahoorPrimary,
+                                                    unfocusedBorderColor = MahoorSurfaceVariant
+                                                )
+                                            )
+                                        }
+
+                                        // Helpers displaying formatted قیمت
+                                        if (minPriceStr.isNotEmpty() || maxPriceStr.isNotEmpty()) {
+                                            val minLabel = if (minPriceStr.isNotEmpty()) {
+                                                val price = minPriceStr.toLongOrNull() ?: 0L
+                                                "از " + when {
+                                                    price >= 1_000_000_000L -> String.format(java.util.Locale.US, "%.1f", price.toDouble() / 1_000_000_000.0).toPersianDigits() + " میلیارد"
+                                                    price >= 1_000_000L -> String.format(java.util.Locale.US, "%.1f", price.toDouble() / 1_000_000.0).toPersianDigits() + " میلیون"
+                                                    else -> price.toString().toPersianDigits()
+                                                }
+                                            } else "از ابتدا"
+
+                                            val maxLabel = if (maxPriceStr.isNotEmpty()) {
+                                                val price = maxPriceStr.toLongOrNull() ?: 0L
+                                                "تا " + when {
+                                                    price >= 1_000_000_000L -> String.format(java.util.Locale.US, "%.1f", price.toDouble() / 1_000_000_000.0).toPersianDigits() + " میلیارد"
+                                                    price >= 1_000_000L -> String.format(java.util.Locale.US, "%.1f", price.toDouble() / 1_000_000.0).toPersianDigits() + " میلیون"
+                                                    else -> price.toString().toPersianDigits()
+                                                }
+                                            } else "بی‌نهایت"
+
+                                            Text(
+                                                text = "$minLabel $maxLabel تومان".toPersianDigits(),
+                                                fontSize = 10.sp,
+                                                color = MahoorPrimary,
+                                                fontWeight = FontWeight.Medium,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Clear Filters button inside Expanded filters
+                                TextButton(
+                                    onClick = clearFilters,
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = "پاک کردن",
+                                        tint = MahoorPrimary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("حذف تمام فیلترها", fontSize = 11.sp, color = MahoorPrimary)
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
+            // Show active filters list with delete chips
+            if (activeFiltersCount > 0) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("فیلترهای فعال:", fontSize = 11.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+
+                        if (searchQuery.isNotEmpty()) {
+                            ActiveFilterChip(text = "متن: $searchQuery") { searchQuery = "" }
+                        }
+                        if (selectedStatus != "همه" && selectedStatus != null) {
+                            ActiveFilterChip(text = "وضعیت: $selectedStatus") { selectedStatus = "همه" }
+                        }
+                        if (selectedPricePreset != "همه قیمت‌ها") {
+                            ActiveFilterChip(text = selectedPricePreset) { selectedPricePreset = "همه قیمت‌ها" }
+                        }
+                        if (minPriceStr.isNotEmpty()) {
+                            ActiveFilterChip(text = "از ${minPriceStr.toLongOrNull()?.formatToShortPersianPrice() ?: minPriceStr}") { minPriceStr = "" }
+                        }
+                        if (maxPriceStr.isNotEmpty()) {
+                            ActiveFilterChip(text = "تا ${maxPriceStr.toLongOrNull()?.formatToShortPersianPrice() ?: maxPriceStr}") { maxPriceStr = "" }
+                        }
+                    }
+                }
+            }
+
+            if (filteredAds.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = MahoorPrimary.copy(alpha = 0.3f),
+                            modifier = Modifier.size(60.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "هیچ موردی یافت نشد!",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MahoorOnBackground.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "آگهی با فیلترهای اعمال شده در منطقه یا بازه قیمتی بالا وجود ندارد.",
+                            fontSize = 11.sp,
+                            color = MahoorOnBackground.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = clearFilters,
+                            colors = ButtonDefaults.buttonColors(containerColor = MahoorPrimary),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("ریست کردن جستجو", fontSize = 11.sp, color = MahoorOnPrimary)
+                        }
+                    }
+                }
+            } else {
+                items(filteredAds, key = { it.id }) { ad ->
+                    RealEstateAdCard(
+                        ad = ad,
+                        credentials = credentials,
+                        onDeleteAd = { onDeleteAd(ad) },
+                        onToggleStatus = { onToggleStatus(ad) },
+                        onEditAd = { onEditAd(ad) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActiveFilterChip(
+    text: String,
+    onRemove: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MahoorPrimary.copy(alpha = 0.12f))
+            .border(0.5.dp, MahoorPrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .clickable { onRemove() }
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = text,
+                fontSize = 10.sp,
+                color = MahoorPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "حذف فیلتر",
+                tint = MahoorPrimary,
+                modifier = Modifier.size(11.dp)
+            )
         }
     }
 }
@@ -1030,7 +1466,6 @@ fun AddAdTab(
 
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     // Camera launcher returning dynamic Bitmaps (Direct & lightweight approach)
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -5467,14 +5902,37 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
 
                                                 2 -> {
                                                     // Advisor support interactive chat inside PWA
-                                                    val chatScrollState = rememberScrollState()
+                                                                                    val chatScrollState = rememberScrollState()
                                                     val scope = rememberCoroutineScope()
                                                     Column(
                                                         modifier = Modifier
                                                             .fillMaxSize()
                                                             .padding(8.dp)
                                                     ) {
-                                                        Text("پشتیبانی و ارتباط با مدیریت", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(bottom = 6.dp))
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text("پشتیبانی و ارتباط با مدیریت", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                            
+                                                            // High reasoning intelligence banner
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(4.dp))
+                                                                    .background(Color(0xFF2ECC71).copy(alpha = 0.15f))
+                                                                    .border(0.5.dp, Color(0xFF2ECC71).copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            ) {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                                ) {
+                                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF2ECC71)))
+                                                                    Text("تفکر عمیق پیشرفته", fontSize = 8.sp, color = Color(0xFF2ECC71), fontWeight = FontWeight.Bold)
+                                                                }
+                                                            }
+                                                        }
                                                         
                                                         // Message feed
                                                         Box(
