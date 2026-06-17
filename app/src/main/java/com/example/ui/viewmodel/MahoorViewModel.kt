@@ -122,12 +122,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
         if (existing == null) {
             val sample1 = RealEstateAd(
                 id = 1,
-                title = "آپارتمان مدرن ۳ خوابه نیاوران",
-                description = "سازه‌ای لوکس و بی‌نظیر اثر آرشیتکت مطرح منطقه. پلان تفکیکی، متریال تماماً برند، آشپزخانه مجهز با کابینت‌های اتریشی، مشاعات هتلینگ شامل استخر، سونا، جکوزی فعال و روف‌گاردن ۴ فصل به همراه سالن اجتماعات مجلل و لابی‌من ۲۴ ساعته.",
-                price = 28000000000, // 28 billion Toman
+                title = "آپارتمان نوساز ۳ خوابه محمودآباد",
+                description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.",
+                price = 2500000000L, // 2.5 billion Toman
                 type = "فروش مسکونی",
-                location = "تهران، نیاوران",
-                areaSize = 185,
+                location = "محمودآباد، خیابان امام",
+                areaSize = 120,
                 rooms = 3,
                 publishToDivar = true,
                 publishToSheypoor = true,
@@ -143,12 +143,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
 
             val sample2 = RealEstateAd(
                 id = 2,
-                title = "رهن و اجاره ویلای مدرن کلاردشت",
-                description = "ویلای مدرن دوبلکس با چشم‌انداز خیره‌کننده کوهستان و جنگل. ۵۰۰ متر زمین، ۲۵۰ متر بنای مهندسی‌ساز، تراس بزرگ رو به طبیعت بکر، متریال عالی، امنیت فوق‌العاده در شهرکی برند همراه با نگهبانی.",
-                price = 150000000, // 150 million Toman deposit (with monthly lease)
-                type = "رهن و اجاره",
-                location = "مازندران، کلاردشت",
-                areaSize = 250,
+                title = "ویلای دوبلکس ساحلی محمودآباد",
+                description = "ویلای دوبلکس ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.",
+                price = 5800000000L, // 5.8 billion Toman
+                type = "فروش مسکونی",
+                location = "محمودآباد، نسیم",
+                areaSize = 180,
                 rooms = 4,
                 publishToDivar = true,
                 publishToSheypoor = false,
@@ -164,12 +164,12 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
 
             val sample3 = RealEstateAd(
                 id = 3,
-                title = "دفتر اداری موقعیت بی‌نظیر جردن",
-                description = "واحد اداری سند رسمی در بهترین فرعی منطقه جردن. بازسازی صفر تا صد شده، اتاق مدیریت بزرگ، پارکینگ همکف، آسانسور، دسترسی استثنایی به بزرگراه‌ها و وسایل حمل و نقل عمومی.",
-                price = 11500000000, // 11.5 billion Toman
-                type = "تجاری و اداری",
-                location = "تهران، جردن",
-                areaSize = 95,
+                title = "آپارتمان ۸۵ متری مبله شیک",
+                description = "واحد ۸۵ متری، ۲ خواب کاملاً مبله با دکوراسیون و تجهیزات کامل لوکس نزدیک خیابان ساحل محمودآباد با پارکینگ اختصاصی.",
+                price = 5000000, // 5 million Toman lease
+                type = "رهن و اجاره",
+                location = "محمودآباد، خیابان ساحل",
+                areaSize = 85,
                 rooms = 2,
                 publishToDivar = false,
                 publishToSheypoor = true,

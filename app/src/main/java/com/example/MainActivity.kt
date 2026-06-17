@@ -16,12 +16,14 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.MahoorViewModel
 import com.example.ui.screens.MahoorMainScreen
 import com.example.ui.screens.IntroVideoPlayer
+import com.example.ui.screens.ExitVideoPlayer
 import com.example.ui.screens.SplashLogoScreen
 
 enum class StartupState {
     VIDEO,
     LOGO_SCREEN,
-    MAIN_APP
+    MAIN_APP,
+    EXIT_VIDEO
 }
 
 class MainActivity : ComponentActivity() {
@@ -51,8 +53,15 @@ class MainActivity : ComponentActivity() {
             StartupState.MAIN_APP -> {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     // Insets are fully managed inside MahoorMainScreen Scaffold
-                    MahoorMainScreen(viewModel)
+                    MahoorMainScreen(viewModel, onExitApp = { startupState = StartupState.EXIT_VIDEO })
                 }
+            }
+            StartupState.EXIT_VIDEO -> {
+                ExitVideoPlayer(
+                    onFinished = {
+                        this@MainActivity.finish()
+                    }
+                )
             }
         }
       }

@@ -120,7 +120,7 @@ class RealEstateRepository(
                     channelName = "divar",
                     isEnabled = true,
                     apiKey = "divar_token_live_mahoor_99x81",
-                    phoneNumber = "09121234567",
+                    phoneNumber = "09111134767",
                     syncStatus = "متصل"
                 )
             )
@@ -133,7 +133,7 @@ class RealEstateRepository(
                     channelName = "sheypoor",
                     isEnabled = true,
                     apiKey = "sheypoor_key_auth_44a218_mahoor",
-                    phoneNumber = "09121234567",
+                    phoneNumber = "09111134767",
                     syncStatus = "متصل"
                 )
             )
@@ -146,7 +146,7 @@ class RealEstateRepository(
                     channelName = "mahoor",
                     isEnabled = true,
                     apiKey = "mahoor_portal_key_internal",
-                    phoneNumber = "09121234567",
+                    phoneNumber = "09111134767",
                     syncStatus = "متصل"
                 )
             )
@@ -191,25 +191,23 @@ class RealEstateRepository(
             )
         }
 
-        val existingProfile = agentProfileDao.getProfile()
-        if (existingProfile == null) {
-            agentProfileDao.insertOrUpdateProfile(
-                AgentProfile(
-                    id = 1,
-                    fullName = "آرش رادمنش",
-                    agencyName = "املاک پایتخت شمیرانات (دپارتمان شمال)",
-                    licenseNumber = "ش-۹۸۳۴۲۱",
-                    phoneNumber = "۰۹۱۲۱۲۳۴۵۶۷",
-                    email = "arash.rad@mahoor.com",
-                    agencyAddress = "تهران، شمیرانات، کامرانیه شمالی، ساختمان یاس، طبقه ۳",
-                    currentPlan = "اشتراک طلایی ۳ ستاره (VIP)",
-                    planExpiryDate = "۱۴۰۶/۰۷/۱۵",
-                    adsLimitRemaining = 45,
-                    totalAdsAllowed = 50,
-                    directSyncLimitRemaining = 98,
-                    totalDirectSyncLimit = 100
-                )
+        // Unconditionally set or update default profile to ensure user-specified details are refreshed
+        agentProfileDao.insertOrUpdateProfile(
+            AgentProfile(
+                id = 1,
+                fullName = "محمد مهدی آزاد",
+                agencyName = "املاک ماهور محمودآباد",
+                licenseNumber = "م-۱۵۹۸",
+                phoneNumber = "۰۹۱۱۳۲۷۶۶۶۷",
+                email = "info@mahoorrlste.ir",
+                agencyAddress = "محمودآباد، خیابان امام، بعد از نسیم ۶۹/۱ — روبروی پارکینگ قزوینی‌پور",
+                currentPlan = "اشتراک ویژه ۵ ستاره طلایی (مدیریت برتر)",
+                planExpiryDate = "۱۴۰۷/۱۲/۲۹",
+                adsLimitRemaining = 120,
+                totalAdsAllowed = 150,
+                directSyncLimitRemaining = 950,
+                totalDirectSyncLimit = 1000
             )
-        }
+        )
     }
 }

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -83,7 +84,13 @@ fun Long.formatToShortPersianPrice(): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MahoorMainScreen(viewModel: MahoorViewModel) {
+fun MahoorMainScreen(
+    viewModel: MahoorViewModel,
+    onExitApp: () -> Unit = {}
+) {
+    BackHandler {
+        onExitApp()
+    }
     val ads by viewModel.uiState.collectAsStateWithLifecycle()
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
@@ -2009,10 +2016,10 @@ fun AddAdTab(
 
     // High fidelity preset real estate options for quick simulation/demonstration
     val simulatedPresets = listOf(
-        Pair("پنت‌هاوس مدرن فرمانیه", "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600"),
-        Pair("ویلای استخردار لواسان", "https://images.unsplash.com/photo-1613977257363-707ba9348227?w=600"),
-        Pair("برج باغ رویال الهیه", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600"),
-        Pair("آپارتمان دیزاین‌شده قیطریه", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600")
+        Pair("آپارتمان نوساز ۳ خوابه محمودآباد", "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600"),
+        Pair("ویلای دوبلکس ساحلی نسیم", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600"),
+        Pair("برج مسکونی لاکچری الهیه", "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600"),
+        Pair("زمین ۳۰۰ متری زمین سنددار", "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600")
     )
 
     // Helper step validator
@@ -2252,7 +2259,7 @@ fun AddAdTab(
                                 OutlinedTextField(
                                     value = location,
                                     onValueChange = { location = it },
-                                    label = { Text("موقعیت ملک و محله (مثال: تهران، نیاوران)") },
+                                    label = { Text("موقعیت ملک و محله (مثال: محمودآباد، خیابان امام)") },
                                     textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2279,13 +2286,13 @@ fun AddAdTab(
                                         fontSize = 10.sp,
                                         color = MahoorOnBackground.copy(alpha = 0.5f)
                                     )
-                                    val fastLocations = listOf("نیاوران", "فرمانیه", "زعفرانیه", "پاسداران", "الهیه", "سعادت‌آباد")
+                                    val fastLocations = listOf("خیابان امام", "شهرک نسیم", "سرخرود ساحلی", "ایزدشهر", "بابلسر", "چمستان")
                                     fastLocations.forEach { locName ->
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(MahoorSurfaceVariant)
-                                                .clickable { location = "تهران، $locName" }
+                                                .clickable { location = "مازندران، $locName" }
                                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
                                             Text(
@@ -3393,7 +3400,7 @@ fun SpecificationsFormCard(
                 OutlinedTextField(
                     value = location,
                     onValueChange = onLocationChange,
-                    label = { Text("موقعیت ملک (مثال: تهران، پاسداران)") },
+                    label = { Text("موقعیت ملک (مثال: محمودآباد، خیابان امام)") },
                     textStyle = TextStyle(fontSize = 13.sp, color = MahoorOnBackground),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3420,13 +3427,13 @@ fun SpecificationsFormCard(
                         fontSize = 10.sp,
                         color = MahoorOnBackground.copy(alpha = 0.5f)
                     )
-                    val fastLocations = listOf("زعفرانیه", "نیاوران", "فرمانیه", "پاسداران", "الهیه", "سعادت‌آباد")
+                    val fastLocations = listOf("خیابان امام", "شهرک نسیم", "سرخرود ساحلی", "ایزدشهر", "بابلسر", "چمستان")
                     fastLocations.forEach { locName ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(MahoorSurfaceVariant)
-                                .clickable { onLocationChange("تهران، $locName") }
+                                .clickable { onLocationChange("مازندران، $locName") }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
@@ -4669,20 +4676,20 @@ fun ApifyDivarConfigCard(
                                         crawlLogs = crawlLogs + "   - آنالیز تصاویر آگهی و مشخص کردن کلیدهای تماسی"
                                         delay(1800)
                                         onScrapedAd(
-                                            "آپارتمان ۷۵ متری پاسداران غرق در نور",
-                                            "خوش‌نقشه و آفتاب‌گیر، فول امکانات شامل پارکینگ، انباری سندی و آسانسور. دسترسی بسیار سریع به اتوبان صیاد شیرازی و مراکز خرید محله پاسداران.",
-                                            8200000000L,
+                                            "آپارتمان ۷۵ متری محمودآباد خوش‌نقشه",
+                                            "خوش‌نقشه و غرق در نور، فول امکانات شامل پارکینگ اختصاصی، انباری و آسانسور. دسترسی بسیار سریع به خیابان امام و ساحل زیبای محمودآباد.",
+                                            1900000000L,
                                             "فروش مسکونی",
-                                            "تهران، پاسداران",
+                                            "مازندران، محمودآباد",
                                             75,
                                             2
                                         )
                                         onScrapedAd(
-                                            "پنت‌هاوس مجلل ۳۲۰ متری زعفرانیه",
-                                            "دید ابدی و بی‌نظیر پایتخت و ارتفاعات البرز. ۵ اتاق خواب مستر، کابینت‌ها و آشپزخانه ساخت ایتالیا، سیستم کاملاً هوشمند BMS، مشاعات هتلینگ تمام فعال استخر سونا جکوزی و لابی مجلل.",
-                                            54000000000L,
+                                            "ویلای دوبلکس مجلل ۳۲۰ متری سرخرود",
+                                            "دید ابدی و بی‌نظیر دریا و ساحل زیبای سرخرود. ۴ اتاق خواب مستر شیک، سیستم کاملاً هوشمند هوای مطبوع، حیاط‌سازی سرسبز زیبا و استخر سونا جکوزی فعال.",
+                                            12500000000L,
                                             "فروش مسکونی",
-                                            "تهران، زعفرانیه",
+                                            "مازندران، سرخرود",
                                             320,
                                             4
                                         )
@@ -5016,31 +5023,31 @@ fun ApifySheypoorConfigCard(
                                         crawlLogs = crawlLogs + "   - تحلیل کدهای تصویری شیپور و شماره تماس‌ها"
                                         delay(1800)
                                         onScrapedAd(
-                                            "دفتر اداری ۸۲ متری جردن فوق‌العاده شیک",
-                                            "موقعیت اداری بی‌نظیر با دسترسی عالی به بزرگراه‌های اصلی. دارای پارکینگ، آسانسور، سیستم دزدگیر، کابینت ممبران و دکوراسیون کامل چوب مناسب پزشکان، وکلا و شرکت‌های معتبر.",
-                                            12800000000L,
+                                            "مغازه تجاری بر خیابان امام محمودآباد",
+                                            "مغازه تجاری ۳۵ متری با دهنه عریض و دید عالی بر خیابان اصلی امام محمودآباد، مناسب انواع مشاغل و برندها با پاخور استثنایی.",
+                                            4800000000L,
                                             "فروش اداری",
-                                            "تهران، جردن",
-                                            82,
-                                            3
+                                            "مازندران، محمودآباد",
+                                            35,
+                                            0
                                         )
                                         onScrapedAd(
-                                            "زمین باغی ۵۰۰ متری ویلایی دماوند (آب‌سرد)",
-                                            "موقعیت فوق‌العاده سرمایه‌گذاری دارای سهمیه آب هفتگی، انشعاب برق پای زمین، درختان میوه بارده الوان و دور تا دور دیوارکشی شده سنگی بلند. کوچه بن‌بست دنج و تهرانی‌نشین.",
-                                            4500000000L,
+                                            "زمین شهرکی ۵۰۰ متری جنگلی چمستان",
+                                            "زمین ۵۰۰ متری داخل شهرک برند سنددار با نگهبانی ۲۴ ساعته، انشعابات کامل پای کار و دورتا دور دیوارکشی شده سرسبز با ویو کوهستان و جنگل.",
+                                            2200000000L,
                                             "زمین و کلنگی",
-                                            "تهران، دماوند",
+                                            "مازندران، چمستان",
                                             500,
                                             0
                                         )
                                         onScrapedAd(
-                                            "آپارتمان ۱۴۰ متری نیاوران چشم‌انداز عالی",
-                                            "خوش‌نقشه بدون فضای پرت، تراس بزرگ قابل چیدمان بدون مشرف. ۲ خواب مستر استاندارد، نورگیری عالی شمالی و جنوبی از دو طرف، متریال ساخت عالی، لابی‌من ۲۴ ساعته.",
-                                            22400000000L,
+                                            "آپارتمان ۱۴۰ متری ساحلی سرخرود چشم‌انداز دریا",
+                                            "آپارتمان بی‌نظیر ۱۴۰ متری با دید کامل و ابدی به خط دریا سرخرود، ۲ خواب مستر، تراس مبله بزرگ و مشاعات کامل برای سکونت دائم یا تفریحی.",
+                                            6500000000L,
                                             "فروش مسکونی",
-                                            "تهران، نیاوران",
+                                            "مازندران، سرخرود",
                                             140,
-                                            3
+                                            2
                                         )
                                         crawlLogs = crawlLogs + "🔍 استخراج داده به پایان رسید. درج آگهی‌های مانیتورینگ شده در پایگاه داده SQLite ماهور..."
                                         delay(1500)
@@ -5878,9 +5885,9 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
                                     // Mock Portal Core Content Area
                                     val simulatorAdList = ads.ifEmpty {
                                         listOf(
-                                            RealEstateAd(id = 101, title = "ویلای استخر دار لواسان", description = "ویو ابدی بی نظیر، ۳ خواب مستر، فول متریال برند مدرن", price = 45000000000L, type = "فروش مسکونی", location = "لواسان بزرگ", areaSize = 420, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                            RealEstateAd(id = 102, title = "آپارتمان لوکس فرمانیه", description = "سازه کلاسیک اصیل، ۲ خواب، مشاعات هتلینگ، لابی من مجرب", price = 28000000000L, type = "فروش مسکونی", location = "فرمانیه شرقی", areaSize = 165, rooms = 2, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 85000000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
+                                            RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                            RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
                                         )
                                     }
 
@@ -6306,9 +6313,9 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
                                                     // Immersive Listings feed inside standalone app
                                                     val simulatorAdList = ads.ifEmpty {
                                                         listOf(
-                                                            RealEstateAd(id = 101, title = "ویلای استخر دار لواسان", description = "ویو ابدی بی نظیر، ۳ خواب مستر، فول متریال برند مدرن", price = 45000000000L, type = "فروش مسکونی", location = "لواسان بزرگ", areaSize = 420, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                                            RealEstateAd(id = 102, title = "آپارتمان لوکس فرمانیه", description = "سازه کلاسیک اصیل، ۲ خواب، مشاعات هتلینگ، لابی من مجرب", price = 28000000000L, type = "فروش مسکونی", location = "فرمانیه شرقی", areaSize = 165, rooms = 2, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 85000000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
+                                                            RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                                            RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
                                                         )
                                                     }
 
