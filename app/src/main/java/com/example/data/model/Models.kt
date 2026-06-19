@@ -24,7 +24,9 @@ data class RealEstateAd(
     val leads: Int = 0, // Calls/contacts
     val timestamp: Long = System.currentTimeMillis(),
     val isActive: Boolean = true,
-    val publishStatus: String = "منتشر شده" // "در حال بررسی", "منتشر شده", "خطا در ارسال"
+    val publishStatus: String = "منتشر شده", // "در حال بررسی", "منتشر شده", "خطا در ارسال"
+    val advisorName: String = "خانم حیدری",
+    val isManagerApproved: Boolean = true
 )
 
 @Entity(tableName = "channel_credentials")
@@ -51,4 +53,21 @@ data class AgentProfile(
     val totalAdsAllowed: Int,
     val directSyncLimitRemaining: Int,
     val totalDirectSyncLimit: Int
-)
+) {
+    fun isManager(): Boolean {
+        val normalized = phoneNumber.replace("۰", "0")
+            .replace("۱", "1")
+            .replace("۲", "2")
+            .replace("۳", "3")
+            .replace("۴", "4")
+            .replace("۵", "5")
+            .replace("۶", "6")
+            .replace("۷", "7")
+            .replace("۸", "8")
+            .replace("۹", "9")
+            .replace(" ", "")
+            .replace("-", "")
+            .replace("+98", "0")
+        return normalized.contains("09113276647") || normalized.endsWith("9113276647") || normalized.contains("3276647")
+    }
+}

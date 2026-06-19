@@ -34,7 +34,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileAndSubscriptionTab(
     agentProfile: AgentProfile?,
-    onUpdateProfile: (AgentProfile) -> Unit
+    onUpdateProfile: (AgentProfile) -> Unit,
+    onLogout: (() -> Unit)? = null
 ) {
     if (agentProfile == null) {
         Box(
@@ -70,7 +71,10 @@ fun ProfileAndSubscriptionTab(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MahoorSurface)
+            colors = CardDefaults.cardColors(
+                containerColor = if (agentProfile.isManager()) Color(0xFF0C2C54) else MahoorSurface
+            ),
+            border = if (agentProfile.isManager()) BorderStroke(1.5.dp, Color(0xFFC5A059)) else null
         ) {
             Row(
                 modifier = Modifier
@@ -84,30 +88,66 @@ fun ProfileAndSubscriptionTab(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(MahoorPrimary.copy(alpha = 0.15f))
-                        .border(1.5.dp, MahoorPrimary, CircleShape),
+                        .background(
+                            if (agentProfile.isManager()) Color(0xFFC5A059).copy(alpha = 0.25f) 
+                            else MahoorPrimary.copy(alpha = 0.15f)
+                        )
+                        .border(
+                            width = 2.dp, 
+                            color = if (agentProfile.isManager()) Color(0xFFC5A059) else MahoorPrimary, 
+                            shape = CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (agentProfile.fullName.isNotEmpty()) agentProfile.fullName.take(2) else "م",
-                        color = MahoorPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (agentProfile.isManager()) {
+                        Icon(
+                            imageVector = Icons.Filled.Stars,
+                            contentDescription = "مدیر ارشد",
+                            tint = Color(0xFFC5A059),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        Text(
+                            text = if (agentProfile.fullName.isNotEmpty()) agentProfile.fullName.take(2) else "م",
+                            color = MahoorPrimary,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 Column {
-                    Text(
-                        text = agentProfile.fullName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MahoorOnBackground
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = agentProfile.fullName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (agentProfile.isManager()) Color(0xFFF9F7F2) else MahoorOnBackground
+                        )
+                        if (agentProfile.isManager()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFC5A059))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "مدیر ارشد",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0C2C54)
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = agentProfile.agencyName,
                         fontSize = 12.sp,
-                        color = MahoorOnBackground.copy(alpha = 0.7f),
+                        color = if (agentProfile.isManager()) Color(0xFFF9F7F2).copy(alpha = 0.8f) else MahoorOnBackground.copy(alpha = 0.7f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -131,10 +171,10 @@ fun ProfileAndSubscriptionTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "پروفایل کاری مشاور",
+                        text = if (agentProfile.isManager()) "مشخصات و اختیارات مدیریت" else "پروفایل کاری مشاور",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MahoorPrimary
+                        color = if (agentProfile.isManager()) Color(0xFFC5A059) else MahoorPrimary
                     )
 
                     if (!isEditingProfile) {
@@ -404,6 +444,22 @@ fun ProfileAndSubscriptionTab(
                     Text("خرید، ارتقاء یا تمدید اشتراک", color = MahoorOnPrimary, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+
+        // Logout Button
+        Button(
+            onClick = { onLogout?.invoke() },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFC0392B).copy(alpha = 0.15f),
+                contentColor = Color(0xFFE74C3C)
+            ),
+            border = BorderStroke(1.dp, Color(0xFFE74C3C).copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("profile_logout_btn")
+        ) {
+            Icon(imageVector = Icons.Filled.ExitToApp, contentDescription = "خروج", tint = Color(0xFFE74C3C))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("خروج از حساب کاربری مشاور", fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 

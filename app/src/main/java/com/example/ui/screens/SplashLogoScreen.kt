@@ -44,7 +44,7 @@ fun SplashLogoScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MahoorDarkBg) // Majestic corporate dark navy background
+            .background(MahoorLogoIvory) // Seamless ivory background matching the logo's background canvas!
             .testTag("splash_logo_screen_root"),
         contentAlignment = Alignment.Center
     ) {
@@ -57,15 +57,15 @@ fun SplashLogoScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
-            // Premium Corporate Logo adapted for navy background
+            // Premium Corporate Logo adapted for ivory background
             MahoorBrandLogo(
                 scale = 1.3f,
                 showText = true,
                 animate = true,
-                backgroundColor = MahoorDarkBg,
-                textColor = Color.White,
-                drawColor = MahoorPrimary,
-                accentColor = MahoorPrimary
+                backgroundColor = MahoorLogoIvory,
+                textColor = MahoorLogoNavy,
+                drawColor = MahoorLogoNavy,
+                accentColor = MahoorLogoGold
             )
 
             Column(
@@ -77,7 +77,7 @@ fun SplashLogoScreen(
                 Text(
                     text = statusText,
                     fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = MahoorLogoNavy.copy(alpha = 0.85f),
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("splash_status_text")
                 )
@@ -91,8 +91,8 @@ fun SplashLogoScreen(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .testTag("splash_progress_bar"),
-                    color = MahoorPrimary, // Gold loading accent
-                    trackColor = MahoorPrimary.copy(alpha = 0.15f)
+                    color = MahoorLogoGold, // Gold loading accent
+                    trackColor = MahoorLogoNavy.copy(alpha = 0.15f)
                 )
             }
         }

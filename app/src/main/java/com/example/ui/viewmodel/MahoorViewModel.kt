@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -138,7 +139,9 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 clicks = 38,
                 leads = 4,
                 isActive = true,
-                publishStatus = "منتشر شده"
+                publishStatus = "منتشر شده",
+                advisorName = "آقای راعی",
+                isManagerApproved = true
             )
 
             val sample2 = RealEstateAd(
@@ -151,15 +154,17 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 areaSize = 180,
                 rooms = 4,
                 publishToDivar = true,
-                publishToSheypoor = false,
+                publishToSheypoor = true,
                 publishToMahoor = true,
                 divarId = null,
                 sheypoorId = null,
-                views = 0,
-                clicks = 0,
-                leads = 0,
+                views = 12,
+                clicks = 3,
+                leads = 1,
                 isActive = true,
-                publishStatus = "در حال بررسی"
+                publishStatus = "در انتظار تایید",
+                advisorName = "خانم حیدری",
+                isManagerApproved = false
             )
 
             val sample3 = RealEstateAd(
@@ -180,12 +185,62 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 clicks = 0,
                 leads = 0,
                 isActive = false,
-                publishStatus = "خطا در ارسال"
+                publishStatus = "خطا در ارسال",
+                advisorName = "خانم حیدری",
+                isManagerApproved = true
+            )
+
+            val sample4 = RealEstateAd(
+                id = 4,
+                title = "زمین ساحلی الحاق به بافت",
+                description = "زمین ۴۵۰ متری خوش قواره، دور دیوار کشی شده با سند تک برگ آماده انتقال، انشعابات روی زمین در محدوده جنگلی و ساحلی شهر محمودآباد.",
+                price = 9000000000L, // 9 billion Toman
+                type = "خرید/فروش زمین",
+                location = "محمودآباد، بلوار معلم",
+                areaSize = 450,
+                rooms = 0,
+                publishToDivar = true,
+                publishToSheypoor = true,
+                publishToMahoor = true,
+                divarId = null,
+                sheypoorId = null,
+                views = 4,
+                clicks = 1,
+                leads = 0,
+                isActive = true,
+                publishStatus = "در انتظار تایید",
+                advisorName = "آقای راعی",
+                isManagerApproved = false
+            )
+
+            val sample5 = RealEstateAd(
+                id = 5,
+                title = "ویلا مدرن استخردار در ایزدشهر",
+                description = "ویلای ۳۵۰ متری دوبلکس، نمای سنگ رومی، جکوزی و استخر بزرگ ۴ فصل فعال، طراحی داخلی استثنایی و دکوراتیو در محمودآباد مرز ایزدشهر.",
+                price = 14500000000L, // 14.5 billion Toman
+                type = "فروش مسکونی",
+                location = "محمودآباد، ایزدشهر",
+                areaSize = 350,
+                rooms = 5,
+                publishToDivar = true,
+                publishToSheypoor = false,
+                publishToMahoor = true,
+                divarId = "DIV-294012",
+                sheypoorId = null,
+                views = 98,
+                clicks = 24,
+                leads = 3,
+                isActive = true,
+                publishStatus = "منتشر شده",
+                advisorName = "خانم حیدری",
+                isManagerApproved = true
             )
 
             database.realEstateDao().insertAd(sample1)
             database.realEstateDao().insertAd(sample2)
             database.realEstateDao().insertAd(sample3)
+            database.realEstateDao().insertAd(sample4)
+            database.realEstateDao().insertAd(sample5)
         }
     }
 
@@ -216,6 +271,10 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             _isSyncing.value = true
+            val currentAgent = agentProfile.value
+            val isApproved = currentAgent?.isManager() == true
+            val advisor = currentAgent?.fullName ?: "خانم حیدری"
+
             val ad = RealEstateAd(
                 title = title,
                 description = description,
@@ -228,10 +287,24 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
                 publishToDivar = publishDivar,
                 publishToSheypoor = publishSheypoor,
                 publishToMahoor = publishMahoor,
-                isActive = true
+                isActive = true,
+                advisorName = advisor,
+                isManagerApproved = isApproved
             )
             val insertedId = repository.publishAd(ad)
             val updatedAd = repository.getAdById(insertedId.toInt())
+            if (updatedAd != null) {
+                firestoreRepository.saveAd(updatedAd)
+            }
+            _isSyncing.value = false
+        }
+    }
+
+    fun approveAd(ad: RealEstateAd) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isSyncing.value = true
+            repository.approveAd(ad)
+            val updatedAd = repository.getAdById(ad.id)
             if (updatedAd != null) {
                 firestoreRepository.saveAd(updatedAd)
             }
@@ -269,20 +342,44 @@ class MahoorViewModel(application: Application) : AndroidViewModel(application) 
     fun syncAllWithFirestore() {
         viewModelScope.launch(Dispatchers.IO) {
             _isFirestoreSyncRunning.value = true
-            _firestoreSyncStatusMsg.value = "درحال همگام‌سازی با پایگاه ابری فایربیس..."
-            val ads = uiState.value
-            var successCount = 0
-            ads.forEach { ad ->
+            _firestoreSyncStatusMsg.value = "درحال ارسال آگهی‌های محلی به فایربیس..."
+            val localAds = uiState.value
+            var uploadCount = 0
+            localAds.forEach { ad ->
                 val success = firestoreRepository.saveAd(ad)
                 if (success) {
-                    successCount++
+                    uploadCount++
                 }
-                delay(200) // Beautiful progress simulation
+                delay(100)
             }
+
+            _firestoreSyncStatusMsg.value = "درحال دریافت آگهی‌های ابری جدید..."
+            var downloadCount = 0
+            try {
+                val remoteAds = firestoreRepository.getAllAds()
+                remoteAds.forEach { remoteAd ->
+                    val localAd = repository.getAdById(remoteAd.id)
+                    if (localAd == null) {
+                        repository.saveAdLocally(remoteAd)
+                        downloadCount++
+                    } else if (remoteAd.timestamp > localAd.timestamp || 
+                               remoteAd.views != localAd.views || 
+                               remoteAd.clicks != localAd.clicks || 
+                               remoteAd.leads != localAd.leads ||
+                               remoteAd.isActive != localAd.isActive ||
+                               remoteAd.publishStatus != localAd.publishStatus) {
+                        repository.saveAdLocally(remoteAd)
+                        downloadCount++
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MahoorViewModel", "Error downloading Firestore ads during sync", e)
+            }
+
             _isFirestoreSyncRunning.value = false
             _firestoreInitialized.value = firestoreRepository.isInitialized
             if (firestoreRepository.isInitialized) {
-                _firestoreSyncStatusMsg.value = "موفق: $successCount آگهی در فایربیس ذخیره شد"
+                _firestoreSyncStatusMsg.value = "همگام‌سازی موفق: $uploadCount ارسال شد، $downloadCount آگهی جدید دریافت شد"
             } else {
                 _firestoreSyncStatusMsg.value = "خطا در اتصال به فایربیس"
             }

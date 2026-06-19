@@ -231,7 +231,7 @@ fun ExitVideoPlayer(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MahoorDarkBg)
+            .background(MahoorLogoIvory)
             .testTag("exit_video_container"),
         contentAlignment = Alignment.Center
     ) {
@@ -244,7 +244,7 @@ fun ExitVideoPlayer(
             MahoorBrandLogo(
                 scale = 1.3f,
                 animate = true,
-                backgroundColor = MahoorDarkBg
+                backgroundColor = MahoorLogoIvory
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -254,13 +254,13 @@ fun ExitVideoPlayer(
                 text = "با تشکر از انتخاب و اعتماد شما",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MahoorLogoNavy
             )
 
             Text(
                 text = "مشاورین املاک ماهور • همراه امین شما",
                 fontSize = 11.sp,
-                color = MahoorPrimary,
+                color = MahoorLogoGold,
                 modifier = Modifier.padding(top = 4.dp)
             )
 
@@ -273,8 +273,8 @@ fun ExitVideoPlayer(
                     .width(160.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(1.5.dp)),
-                color = MahoorPrimary,
-                trackColor = Color.White.copy(alpha = 0.1f)
+                color = MahoorLogoGold,
+                trackColor = MahoorLogoNavy.copy(alpha = 0.1f)
             )
             
             Spacer(modifier = Modifier.height(8.dp))
@@ -282,7 +282,7 @@ fun ExitVideoPlayer(
             Text(
                 text = "در حال خروج از برنامه...",
                 fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.4f)
+                color = MahoorLogoNavy.copy(alpha = 0.5f)
             )
         }
     }
@@ -377,7 +377,7 @@ fun SceneAppPhoneShow() {
                             ) {
                                 // House placeholder
                                 Image(
-                                    painter = painterResource(id = R.drawable.img_mahoor_logo_1781448528082),
+                                    painter = painterResource(id = R.drawable.img_mahoor_emblem_1781807051115),
                                     contentDescription = null,
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
@@ -579,13 +579,13 @@ fun SceneLogoOutro() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MahoorDarkBg),
+            .background(MahoorLogoIvory),
         contentAlignment = Alignment.Center
     ) {
         MahoorBrandLogo(
             scale = 1.4f,
             animate = true,
-            backgroundColor = MahoorDarkBg
+            backgroundColor = MahoorLogoIvory
         )
     }
 }

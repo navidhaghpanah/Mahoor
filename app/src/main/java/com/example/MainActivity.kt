@@ -12,16 +12,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.MahoorViewModel
 import com.example.ui.screens.MahoorMainScreen
 import com.example.ui.screens.IntroVideoPlayer
 import com.example.ui.screens.ExitVideoPlayer
 import com.example.ui.screens.SplashLogoScreen
+import com.example.ui.screens.LoginScreen
 
 enum class StartupState {
     VIDEO,
     LOGO_SCREEN,
+    LOGIN_SCREEN,
     MAIN_APP,
     EXIT_VIDEO
 }
@@ -38,6 +41,7 @@ class MainActivity : ComponentActivity() {
     setContent {
       MyApplicationTheme {
         var startupState by remember { mutableStateOf(StartupState.VIDEO) }
+        val agentProfile by viewModel.agentProfile.collectAsState(initial = null)
 
         when (startupState) {
             StartupState.VIDEO -> {
@@ -47,13 +51,26 @@ class MainActivity : ComponentActivity() {
             }
             StartupState.LOGO_SCREEN -> {
                 SplashLogoScreen(
-                    onTimeout = { startupState = StartupState.MAIN_APP }
+                    onTimeout = { startupState = StartupState.LOGIN_SCREEN }
+                )
+            }
+            StartupState.LOGIN_SCREEN -> {
+                LoginScreen(
+                    currentProfile = agentProfile,
+                    onLoginSuccess = { profile ->
+                        viewModel.updateAgentProfile(profile)
+                        startupState = StartupState.MAIN_APP
+                    }
                 )
             }
             StartupState.MAIN_APP -> {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     // Insets are fully managed inside MahoorMainScreen Scaffold
-                    MahoorMainScreen(viewModel, onExitApp = { startupState = StartupState.EXIT_VIDEO })
+                    MahoorMainScreen(
+                        viewModel = viewModel, 
+                        onExitApp = { startupState = StartupState.EXIT_VIDEO },
+                        onLogout = { startupState = StartupState.LOGIN_SCREEN }
+                    )
                 }
             }
             StartupState.EXIT_VIDEO -> {

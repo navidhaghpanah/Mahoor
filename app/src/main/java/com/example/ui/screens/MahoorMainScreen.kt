@@ -6,6 +6,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,7 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import com.example.data.model.AgentProfile
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -86,7 +89,8 @@ fun Long.formatToShortPersianPrice(): String {
 @Composable
 fun MahoorMainScreen(
     viewModel: MahoorViewModel,
-    onExitApp: () -> Unit = {}
+    onExitApp: () -> Unit = {},
+    onLogout: (() -> Unit)? = null
 ) {
     BackHandler {
         onExitApp()
@@ -248,20 +252,22 @@ fun MahoorMainScreen(
                     ),
                     modifier = Modifier.testTag("tab_gateways")
                 )
-                NavigationBarItem(
-                    selected = activeTab == 3,
-                    onClick = { activeTab = 3 },
-                    icon = { Icon(Icons.Filled.TrendingUp, contentDescription = "آمار") },
-                    label = { Text("وب‌اپ و آمار", fontSize = 11.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MahoorOnPrimary,
-                        selectedTextColor = MahoorPrimary,
-                        unselectedIconColor = MahoorOnBackground.copy(alpha = 0.6f),
-                        unselectedTextColor = MahoorOnBackground.copy(alpha = 0.6f),
-                        indicatorColor = MahoorPrimary
-                    ),
-                    modifier = Modifier.testTag("tab_analytics")
-                )
+                if (agentProfile?.isManager() == true) {
+                    NavigationBarItem(
+                        selected = activeTab == 3,
+                        onClick = { activeTab = 3 },
+                        icon = { Icon(Icons.Filled.TrendingUp, contentDescription = "آمار") },
+                        label = { Text("وب‌اپ و آمار", fontSize = 11.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MahoorOnPrimary,
+                            selectedTextColor = MahoorPrimary,
+                            unselectedIconColor = MahoorOnBackground.copy(alpha = 0.6f),
+                            unselectedTextColor = MahoorOnBackground.copy(alpha = 0.6f),
+                            indicatorColor = MahoorPrimary
+                        ),
+                        modifier = Modifier.testTag("tab_analytics")
+                    )
+                }
                 NavigationBarItem(
                     selected = activeTab == 4,
                     onClick = { activeTab = 4 },
@@ -303,7 +309,9 @@ fun MahoorMainScreen(
                         firestoreInitialized = firestoreInitialized,
                         isSyncingFirestore = isSyncingFirestore,
                         firestoreSyncMsg = firestoreSyncMsg,
-                        onSyncFirestore = { viewModel.syncAllWithFirestore() }
+                        onSyncFirestore = { viewModel.syncAllWithFirestore() },
+                        agentProfile = agentProfile,
+                        onApproveAd = { viewModel.approveAd(it) }
                     )
                     1 -> AddAdTab(
                         isSyncing = isSyncing,
@@ -344,10 +352,11 @@ fun MahoorMainScreen(
                             )
                         }
                     )
-                    3 -> AnalyticsAndIosTab(ads = ads, viewModel = viewModel)
+                    3 -> AnalyticsAndIosTab(ads = ads, viewModel = viewModel, agentProfile = agentProfile)
                     4 -> ProfileAndSubscriptionTab(
                         agentProfile = agentProfile,
-                        onUpdateProfile = { viewModel.updateAgentProfile(it) }
+                        onUpdateProfile = { viewModel.updateAgentProfile(it) },
+                        onLogout = onLogout
                     )
                 }
             }
@@ -381,7 +390,9 @@ fun DashboardTab(
     firestoreInitialized: Boolean = true,
     isSyncingFirestore: Boolean = false,
     firestoreSyncMsg: String = "",
-    onSyncFirestore: () -> Unit = {}
+    onSyncFirestore: () -> Unit = {},
+    agentProfile: AgentProfile? = null,
+    onApproveAd: ((RealEstateAd) -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf<String?>("همه") }
@@ -389,7 +400,7 @@ fun DashboardTab(
     var minPriceStr by remember { mutableStateOf("") }
     var maxPriceStr by remember { mutableStateOf("") }
     var filtersExpanded by remember { mutableStateOf(false) }
-    var currentViewMode by remember { mutableStateOf(0) } // 0: Listings, 1: Publish Management Panel
+    var currentViewMode by remember { mutableStateOf(if (agentProfile?.isManager() == true) 2 else 0) } // 0: Listings, 1: Publish Management Panel, 2: Manager Dashboard
 
     val activeFiltersCount = remember(searchQuery, selectedStatus, selectedPricePreset, minPriceStr, maxPriceStr) {
         var count = 0
@@ -582,7 +593,7 @@ fun DashboardTab(
                 }
             }
 
-            // View Mode Selector Segment (General Ads Listings vs. Publish Management Panel)
+            // View Mode Selector Segment (Advisors Directory & Approval Panel for Managers, Listings vs Dev/Prod Status for all)
             item {
                 Row(
                     modifier = Modifier
@@ -592,6 +603,23 @@ fun DashboardTab(
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    if (agentProfile?.isManager() == true) {
+                        Button(
+                            onClick = { currentViewMode = 2 },
+                            modifier = Modifier.weight(1.2f).testTag("mode_manager_panel"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (currentViewMode == 2) MahoorPrimary else Color.Transparent,
+                                contentColor = if (currentViewMode == 2) MahoorOnPrimary else MahoorOnBackground
+                            ),
+                            contentPadding = PaddingValues(vertical = 12.dp, horizontal = 4.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.SupervisorAccount, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("داشبورد مدیریت", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     Button(
                         onClick = { currentViewMode = 0 },
                         modifier = Modifier.weight(1f).testTag("mode_ads_list"),
@@ -602,9 +630,9 @@ fun DashboardTab(
                         ),
                         contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        Icon(imageVector = Icons.Filled.List, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("نمایش عمومی آگهی‌ها", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Filled.List, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (agentProfile?.isManager() == true) "کل آگهی‌ها" else "نمایش عمومی آگهی‌ها", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -617,14 +645,145 @@ fun DashboardTab(
                         ),
                         contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        Icon(imageVector = Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("پنل مدیریت وضعیت انتشار", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (agentProfile?.isManager() == true) "وضعیت انتشار" else "پنل مدیریت وضعیت انتشار", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
-            // --- SEARCH & FILTER SECTION ---
+            if (currentViewMode == 2) {
+                // --- MANAGER DASHBOARD PANEL ---
+                item {
+                    Text(
+                        text = "لیست مشاوران و عملکرد کل",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorPrimary,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                    )
+                }
+
+                item {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        item {
+                            val count = ads.count { it.advisorName == "خانم حیدری" }
+                            val pending = ads.count { it.advisorName == "خانم حیدری" && !it.isManagerApproved }
+                            val views = ads.filter { it.advisorName == "خانم حیدری" }.sumOf { it.views }
+                            val leads = ads.filter { it.advisorName == "خانم حیدری" }.sumOf { it.leads }
+                            AdvisorCard(
+                                name = "خانم حیدری",
+                                title = "مشاور تخصصی ویلا ساحلی",
+                                phone = "۰۹۱۲۰۹۹۶۴۲۶".toPersianDigits(),
+                                totalAds = count,
+                                pendingCount = pending,
+                                totalViews = views,
+                                totalLeads = leads,
+                                avatarColor = Color(0xFF9155FD)
+                            )
+                        }
+
+                        item {
+                            val count = ads.count { it.advisorName == "آقای راعی" }
+                            val pending = ads.count { it.advisorName == "آقای راعی" && !it.isManagerApproved }
+                            val views = ads.filter { it.advisorName == "آقای راعی" }.sumOf { it.views }
+                            val leads = ads.filter { it.advisorName == "آقای راعی" }.sumOf { it.leads }
+                            AdvisorCard(
+                                name = "آقای راعی",
+                                title = "کارشناس تخصصی زمین و جنگلی",
+                                phone = "۰۹۱۲۰۹۹۷۴۵۳".toPersianDigits(),
+                                totalAds = count,
+                                pendingCount = pending,
+                                totalViews = views,
+                                totalLeads = leads,
+                                avatarColor = Color(0xFF26C6F2)
+                            )
+                        }
+
+                        item {
+                            val managerAds = ads.filter { it.advisorName == "محمد مهدی آزاد" || it.advisorName == "املاک ماهور" || it.advisorName.contains("آزاد") }
+                            val count = managerAds.size
+                            val pending = managerAds.count { !it.isManagerApproved }
+                            val views = managerAds.sumOf { it.views }
+                            val leads = managerAds.sumOf { it.leads }
+                            AdvisorCard(
+                                name = "محمد مهدی آزاد",
+                                title = "مدیر آژانس املاک ماهور (شما)",
+                                phone = "۰۹۱۱۳۲۷۶۶۴۷".toPersianDigits(),
+                                totalAds = count,
+                                pendingCount = pending,
+                                totalViews = views,
+                                totalLeads = leads,
+                                avatarColor = Color(0xFFFFB400)
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Text(
+                        text = "صندوق تایید نهایی آگهی‌ها (دیوار و شیپور)",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorPrimary,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                    )
+                }
+
+                val unapproved = ads.filter { !it.isManagerApproved }
+                if (unapproved.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                                .testTag("no_unapproved_ads_card"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+                            border = BorderStroke(1.dp, MahoorSurfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2ECC71),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "تمامی آگهی‌ها تایید شده‌اند",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MahoorOnBackground
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "هیچ موردی معلق در صف تایید مشاوران شما وجود ندارد.",
+                                    fontSize = 11.sp,
+                                    color = MahoorOnBackground.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(unapproved, key = { "unapproved_${it.id}" }) { ad ->
+                        AwaitingApprovalCard(
+                            ad = ad,
+                            onApprove = { onApproveAd?.invoke(ad) }
+                        )
+                    }
+                }
+            } else {
+                // --- SEARCH & FILTER SECTION ---
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().testTag("search_filter_card"),
@@ -989,6 +1148,7 @@ fun DashboardTab(
                         )
                     }
                 }
+            }
             }
         }
     }
@@ -5260,7 +5420,11 @@ fun PlatformConfigCard(
 // TAB 3: ANALYTICS & DOCKING FOR iOS PWAS
 // -----------------------------------------------------------------
 @Composable
-fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmodel.MahoorViewModel) {
+fun AnalyticsAndIosTab(
+    ads: List<RealEstateAd>, 
+    viewModel: com.example.ui.viewmodel.MahoorViewModel,
+    agentProfile: com.example.data.model.AgentProfile? = null
+) {
     val scrollState = rememberScrollState()
 
     // Aggregates
@@ -5295,6 +5459,155 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
             .padding(16.dp)
             .verticalScroll(scrollState)
     ) {
+        if (agentProfile?.isManager() == true) {
+            // High-end Management Supervision Board
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0C2C54)),
+                border = BorderStroke(1.5.dp, Color(0xFFC5A059))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Stars,
+                                contentDescription = "مدیر ارشد",
+                                tint = Color(0xFFC5A059),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "پنل نظارت ارشد مدیریت (۰۹۱۱۳۲۷۶۶۴۷)",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFF9F7F2)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF2ECC71).copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "امن - فعال".toPersianDigits(),
+                                fontSize = 10.sp,
+                                color = Color(0xFF2ECC71),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "کنترل زنده و نظارت اختصاصی بر عملکرد فایل‌ها، هماهنگی مشاوران و همگام‌سازی صنف در دیوار، شیپور و پورتال ماهور محمودآباد.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFF9F7F2).copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    )
+
+                    HorizontalDivider(color = Color(0xFFC5A059).copy(alpha = 0.3f), modifier = Modifier.padding(bottom = 12.dp))
+
+                    // Supervision Mini Metrics
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF9F7F2).copy(alpha = 0.08f))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text("تعداد مشاورین فعال", fontSize = 10.sp, color = Color(0xFFF9F7F2).copy(alpha = 0.5f))
+                                Text("۲ نفر".toPersianDigits(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC5A059))
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF9F7F2).copy(alpha = 0.08f))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text("آگهی برخط مشاوران", fontSize = 10.sp, color = Color(0xFFF9F7F2).copy(alpha = 0.5f))
+                                Text("۴۴ فایل زنده".toPersianDigits(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC5A059))
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF9F7F2).copy(alpha = 0.08f))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text("ظرفیت همگام‌ساز", fontSize = 10.sp, color = Color(0xFFF9F7F2).copy(alpha = 0.5f))
+                                Text("۹۸٪ بازدهی".toPersianDigits(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2ECC71))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "وضعیت عملکرد و جریان جذب مشتری مشاوران:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF9F7F2),
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    // Advisor Row 1
+                    AdvisorSupervisionRow(
+                        name = "خانم حیدری",
+                        role = "مشاور تخصصی ویلا و آپارتمان (۰۹۱۲۰۹۹۶۴۲۶)",
+                        stat = "۲۸ فایل - ۹۶٪ همگام شده",
+                        leads = "۲۴ تماس تلفنی (بازدهی عالی)",
+                        isOnline = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Advisor Row 2
+                    AdvisorSupervisionRow(
+                        name = "آقای راعی",
+                        role = "کارشناس تخصصی زمین و ساحلی (۰۹۱۲۰۹۹۷۴۵۳)",
+                        stat = "۱۶ فایل - ۱۰۰٪ همگام شده",
+                        leads = "۱۵ تماس تلفنی (بازدهی بسیار خوب)",
+                        isOnline = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            // Simulation action
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC5A059)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, tint = Color(0xFF0C2C54))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "بروزرسانی یکپارچه و بهینه‌سازی بارگذاری",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0C2C54)
+                        )
+                    }
+                }
+            }
+        }
+
         // Analytics section
         Text(
             text = "گزارش تجمیعی کلیک‌ها و بازدهی",
@@ -5883,13 +6196,11 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
                                     }
 
                                     // Mock Portal Core Content Area
-                                    val simulatorAdList = ads.ifEmpty {
-                                        listOf(
-                                            RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                            RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
-                                        )
-                                    }
+                                    val simulatorAdList = listOf(
+                                        RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                        RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                        RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
+                                    )
 
                                     Box(
                                         modifier = Modifier
@@ -6311,13 +6622,11 @@ fun AnalyticsAndIosTab(ads: List<RealEstateAd>, viewModel: com.example.ui.viewmo
                                             when (activePwaTab) {
                                                 0 -> {
                                                     // Immersive Listings feed inside standalone app
-                                                    val simulatorAdList = ads.ifEmpty {
-                                                        listOf(
-                                                            RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                                            RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
-                                                            RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
-                                                        )
-                                                    }
+                                                    val simulatorAdList = listOf(
+                                                        RealEstateAd(id = 101, title = "ویلای دوبلکس ساحلی نسیم", description = "ویلای ساحلی مدرن با ۲۰۰ متر زمین و ۱۸۰ متر بنای عالی، ۴ خواب مستر و حیاط بزرگ شیک رو به جنگل و ساحل در منطقه زیبای نسیم.", price = 5800000000L, type = "فروش مسکونی", location = "محمودآباد، نسیم", areaSize = 180, rooms = 4, views = 152, clicks = 38, leads = 9, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                                        RealEstateAd(id = 102, title = "آپارتمان نوساز ۳ خوابه محمودآباد", description = "آپارتمان نوساز ۱۲۰ متری، ۳ خوابه همراه با پارکینگ اختصاصی و متریال درجه یک. سازه‌ای شیک و مدرن در بهترین نقطه محمودآباد نزدیک خیابان امام با دسترسی بیداد.", price = 2500000000L, type = "فروش مسکونی", location = "محمودآباد، خیابان امام", areaSize = 120, rooms = 3, views = 241, clicks = 55, leads = 12, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true),
+                                                        RealEstateAd(id = 103, title = "مغازه تجاری بر پاسداران", description = "۱۵ متر دهنه عریض، تابلوخور عالی، مناسب برندهای معتبر با پارکینگ اختصاصی", price = 8500000000L, type = "تجاری و اداری", location = "پاسداران", areaSize = 85, rooms = 0, views = 84, clicks = 19, leads = 4, publishToDivar = true, publishToSheypoor = true, publishToMahoor = true)
+                                                    )
 
                                                     Column(
                                                         modifier = Modifier
@@ -6756,6 +7065,379 @@ fun ChannelBarMetric(
                     .clip(CircleShape)
                     .background(color)
             )
+        }
+    }
+}
+
+@Composable
+fun AdvisorSupervisionRow(
+    name: String,
+    role: String,
+    stat: String,
+    leads: String,
+    isOnline: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF9F7F2).copy(alpha = 0.05f))
+            .padding(10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (isOnline) Color(0xFF2ECC71) else Color.Gray)
+                )
+                Text(text = name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF9F7F2))
+            }
+            Text(text = role, fontSize = 10.sp, color = Color(0xFFF9F7F2).copy(alpha = 0.5f))
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(text = stat.toPersianDigits(), fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFFC5A059))
+            Text(text = leads.toPersianDigits(), fontSize = 10.sp, color = Color(0xFF2ECC71))
+        }
+    }
+}
+
+@Composable
+fun AdvisorCard(
+    name: String,
+    title: String,
+    phone: String,
+    totalAds: Int,
+    pendingCount: Int,
+    totalViews: Int,
+    totalLeads: Int,
+    avatarColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .width(260.dp)
+            .testTag("advisor_card_${name}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = name.take(1),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = avatarColor
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorOnBackground
+                    )
+                    Text(
+                        text = title,
+                        fontSize = 10.sp,
+                        color = MahoorOnBackground.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Divider(color = MahoorSurfaceVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("کل فایل‌ها", fontSize = 9.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    Text(
+                        text = "${totalAds} آگهی".toPersianDigits(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorOnBackground
+                    )
+                }
+                Column {
+                    Text("در انتظار تایید", fontSize = 9.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    Text(
+                        text = if (pendingCount > 0) "${pendingCount} مورد".toPersianDigits() else "۰",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (pendingCount > 0) Color(0xFFF1C40F) else Color(0xFF2ECC71)
+                    )
+                }
+                Column {
+                    Text("بازدید / تماس", fontSize = 9.sp, color = MahoorOnBackground.copy(alpha = 0.5f))
+                    Text(
+                        text = "${totalViews} / ${totalLeads}".toPersianDigits(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MahoorPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MahoorDarkBg.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Phone,
+                    contentDescription = null,
+                    tint = avatarColor,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = phone,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = MahoorOnBackground.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AwaitingApprovalCard(
+    ad: RealEstateAd,
+    onApprove: () -> Unit
+) {
+    var isApproving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("unapproved_card_${ad.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MahoorSurface),
+        border = BorderStroke(1.dp, MahoorSurfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MahoorPrimary.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "مشاور: ${ad.advisorName}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MahoorPrimary
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFF1C40F).copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = ad.publishStatus,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF39C12)
+                        )
+                    }
+                }
+
+                Text(
+                    text = ad.price.formatToShortPersianPrice(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MahoorPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = ad.title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MahoorOnBackground
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "${ad.type} • ${ad.location}".toPersianDigits(),
+                fontSize = 11.sp,
+                color = MahoorOnBackground.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Divider(color = MahoorSurfaceVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "سکوهای درخواست شده جهت انتشار:",
+                fontSize = 10.sp,
+                color = MahoorOnBackground.copy(alpha = 0.5f),
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Divar Indicator
+                Box(
+                    modifier = Modifier
+                        .alpha(if (ad.publishToDivar) 1f else 0.4f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (ad.publishToDivar) DivarBrandRed.copy(alpha = 0.12f) else MahoorSurfaceVariant.copy(alpha = 0.4f))
+                        .border(
+                            0.5.dp,
+                            if (ad.publishToDivar) DivarBrandRed.copy(alpha = 0.3f) else Color.Transparent,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (ad.publishToDivar) DivarBrandRed else Color.Gray)
+                        )
+                        Text("دیوار", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (ad.publishToDivar) DivarBrandRed else MahoorOnBackground)
+                    }
+                }
+
+                // Sheypoor Indicator
+                Box(
+                    modifier = Modifier
+                        .alpha(if (ad.publishToSheypoor) 1f else 0.4f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (ad.publishToSheypoor) SheypoorBrandBlue.copy(alpha = 0.12f) else MahoorSurfaceVariant.copy(alpha = 0.4f))
+                        .border(
+                            0.5.dp,
+                            if (ad.publishToSheypoor) SheypoorBrandBlue.copy(alpha = 0.3f) else Color.Transparent,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (ad.publishToSheypoor) SheypoorBrandBlue else Color.Gray)
+                        )
+                        Text("شیپور", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (ad.publishToSheypoor) SheypoorBrandBlue else MahoorOnBackground)
+                    }
+                }
+
+                // Mahoor Indicator
+                Box(
+                    modifier = Modifier
+                        .alpha(if (ad.publishToMahoor) 1f else 0.4f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (ad.publishToMahoor) MahoorPrimary.copy(alpha = 0.12f) else MahoorSurfaceVariant.copy(alpha = 0.4f))
+                        .border(
+                            0.5.dp,
+                            if (ad.publishToMahoor) MahoorPrimary.copy(alpha = 0.3f) else Color.Transparent,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (ad.publishToMahoor) MahoorPrimary else Color.Gray)
+                        )
+                        Text("ماهور", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (ad.publishToMahoor) MahoorPrimary else MahoorOnBackground)
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Approve Action button with loading states
+                Button(
+                    onClick = {
+                        isApproving = true
+                        scope.launch {
+                            delay(1200)
+                            onApprove()
+                            isApproving = false
+                        }
+                    },
+                    modifier = Modifier.testTag("btn_approve_${ad.id}"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2ECC71)),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    enabled = !isApproving
+                ) {
+                    if (isApproving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = "تایید",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "تایید نهایی و انتشار فوری",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -28,6 +28,15 @@ class RealEstateRepository(
 
     // Simulates publishing an ad across several portals
     suspend fun publishAd(ad: RealEstateAd): Long {
+        if (!ad.isManagerApproved) {
+            val initialAd = ad.copy(
+                publishStatus = "در انتظار تایید",
+                divarId = null,
+                sheypoorId = null
+            )
+            return realEstateDao.insertAd(initialAd)
+        }
+
         // 1. First insert into SQLite with initial "در حال بررسی" state to let user see it immediately
         val initialAd = ad.copy(
             publishStatus = "در حال بررسی",
@@ -57,6 +66,30 @@ class RealEstateRepository(
         )
         realEstateDao.updateAd(finalizedAd)
         return insertedId
+    }
+
+    suspend fun approveAd(ad: RealEstateAd) {
+        val approvedAd = ad.copy(
+            isManagerApproved = true,
+            publishStatus = "در حال بررسی"
+        )
+        realEstateDao.updateAd(approvedAd)
+
+        // Perform live network simulation delays for Divar/Sheypoor
+        delay(1600)
+
+        val isSuccessful = Random.nextFloat() > 0.10f // 90% success on manager approved
+        val divarId = if (isSuccessful && ad.publishToDivar) "DIV-${Random.nextInt(100000, 999999)}" else null
+        val sheypoorId = if (isSuccessful && ad.publishToSheypoor) "SHY-${Random.nextInt(100000, 999999)}" else null
+        val finalStatus = if (isSuccessful) "منتشر شده" else "خطا در ارسال"
+
+        realEstateDao.updateAd(approvedAd.copy(
+            divarId = divarId,
+            sheypoorId = sheypoorId,
+            publishStatus = finalStatus,
+            views = if (isSuccessful) Random.nextInt(5, 12) else 0,
+            clicks = if (isSuccessful) Random.nextInt(1, 4) else 0
+        ))
     }
 
     suspend fun updateAd(ad: RealEstateAd) {
@@ -109,6 +142,10 @@ class RealEstateRepository(
 
     suspend fun updateChannelEnabled(channelName: String, isEnabled: Boolean) {
         credentialDao.updateChannelEnabled(channelName, isEnabled)
+    }
+
+    suspend fun saveAdLocally(ad: RealEstateAd) {
+        realEstateDao.insertAd(ad)
     }
 
     // Prepopulate some default platforms, keys and properties to offer an amazing out-of-the-box user experience
@@ -195,13 +232,13 @@ class RealEstateRepository(
         agentProfileDao.insertOrUpdateProfile(
             AgentProfile(
                 id = 1,
-                fullName = "محمد مهدی آزاد",
-                agencyName = "املاک ماهور محمودآباد",
+                fullName = "محمد مهدی آزاد (مدیر ارشد املاک ماهور)",
+                agencyName = "مجموعه تخصصی املاک ماهور",
                 licenseNumber = "م-۱۵۹۸",
-                phoneNumber = "۰۹۱۱۳۲۷۶۶۶۷",
+                phoneNumber = "۰۹۱۱۳۲۷۶۶۴۷",
                 email = "info@mahoorrlste.ir",
                 agencyAddress = "محمودآباد، خیابان امام، بعد از نسیم ۶۹/۱ — روبروی پارکینگ قزوینی‌پور",
-                currentPlan = "اشتراک ویژه ۵ ستاره طلایی (مدیریت برتر)",
+                currentPlan = "سرویس ویژه پلاتینیوم (کنترل و ارزیابی کل)",
                 planExpiryDate = "۱۴۰۷/۱۲/۲۹",
                 adsLimitRemaining = 120,
                 totalAdsAllowed = 150,

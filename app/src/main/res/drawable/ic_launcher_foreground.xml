@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/img_mahoor_logo_1781448528082"
+        android:drawable="@drawable/img_mahoor_emblem_1781807051115"
         android:gravity="center" />
 </layer-list>
